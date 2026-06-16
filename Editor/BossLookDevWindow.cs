@@ -63,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.8.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.8.1 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -337,9 +337,24 @@ namespace Boss.LookDev.Editor
             bool canBake = LightingBakeOps.CanBake(look, out string reason);
             if (!canBake) EditorGUILayout.HelpBox(reason, MessageType.Warning);
 
-            using (new EditorGUI.DisabledScope(!canBake || Lightmapping.isRunning))
-                if (Button("🔥 ベイクを実行", BossLookDevPalette.Bake, 28f))
-                    LightingBakeOps.StartBake(look);
+            bool baked = LightingBakeOps.HasBakedData();
+            if (baked && !Lightmapping.isRunning)
+                EditorGUILayout.HelpBox(
+                    "ベイク済みです。ライティングを調整したい時は、まず『ベイクをクリア』してリアルタイム表示に戻し、調整 → 再ベイク、が分かりやすいです（焼かれたままだと変化が見えません）。",
+                    MessageType.Info);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                using (new EditorGUI.DisabledScope(!canBake || Lightmapping.isRunning))
+                    if (Button("🔥 ベイクを実行", BossLookDevPalette.Bake, 28f))
+                        LightingBakeOps.StartBake(look);
+                using (new EditorGUI.DisabledScope(!baked || Lightmapping.isRunning))
+                    if (Button("ベイクをクリア（再調整用）", BossLookDevPalette.Danger, 28f))
+                    {
+                        LightingBakeOps.ClearBake();
+                        ShowNotification(new GUIContent("ベイクをクリアしました"));
+                    }
+            }
 
             if (Lightmapping.isRunning)
             {

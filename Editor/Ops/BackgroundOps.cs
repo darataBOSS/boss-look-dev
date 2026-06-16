@@ -43,9 +43,17 @@ namespace Boss.LookDev.Editor.Ops
             switch (bg.mode)
             {
                 case BackgroundMode.Skybox:
+                    // Restore the HDRI skybox material into RenderSettings (it may
+                    // have been nulled by a previous SolidColor/AR switch).
+                    var hdriMat = AssetDatabase.LoadAssetAtPath<Material>(
+                        $"{SceneBindingOps.AssetFolder(look)}/{look.lookName}_Skybox.mat");
+                    if (hdriMat != null) RenderSettings.skybox = hdriMat;
                     if (cam != null) cam.clearFlags = CameraClearFlags.Skybox;
                     break;
                 case BackgroundMode.SolidColor:
+                    // Actually remove the Lighting skybox (not just the camera) so
+                    // STYLY / AR genuinely has no sky. Baked ambient/reflection stay.
+                    RenderSettings.skybox = null;
                     if (cam != null)
                     {
                         cam.clearFlags = CameraClearFlags.SolidColor;

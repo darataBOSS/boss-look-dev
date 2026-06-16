@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2026-06-16
+
+### Fixed
+- **AR 背景透過で Lighting の Skybox を実際に外す**: 単色(SolidColor)モード/「AR: 背景を透過」で `RenderSettings.skybox` を null にするように（従来はカメラの clear flags のみで、Lighting タブに skybox が残り STYLY 等で AR にならない懸念があった）。Skybox モードに戻すと HDRI スカイボックスを復元。ベイク済み ambient/reflection は保持。
+
+### Added
+- **ベイクのクリア**: 「2. ライティング」のベイク欄に「ベイクをクリア（再調整用）」ボタン＋ベイク済み状態表示。`Lightmapping.Clear()` でリアルタイム表示に戻し、調整 → 再ベイク、というワークフローに。焼かれたままで変化が見えない問題を解消。
+
 ## [0.8.0] - 2026-06-16
 
 ### Changed — UX 改善（フィードバック反映）

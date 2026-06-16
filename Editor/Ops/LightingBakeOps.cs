@@ -285,5 +285,16 @@ namespace Boss.LookDev.Editor.Ops
         {
             if (Lightmapping.isRunning) Lightmapping.Cancel();
         }
+
+        public static bool HasBakedData() => Lightmapping.lightingDataAsset != null;
+
+        /// <summary>Clears the scene's baked lightmaps so the realtime (unbaked)
+        /// state is visible again — the right move before re-tweaking lighting,
+        /// otherwise stale baked results hide your changes. Re-bake when done.</summary>
+        public static void ClearBake()
+        {
+            if (Lightmapping.isRunning) Lightmapping.Cancel();
+            Lightmapping.Clear();
+        }
     }
 }
