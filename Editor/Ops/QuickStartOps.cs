@@ -37,13 +37,23 @@ namespace Boss.LookDev.Editor.Ops
         public static string Run(LookDefinition look)
         {
             if (look == null) return "Look がありません。";
-            if (look.lighting.hdri == null) return "HDRI を先に設定してください (lighting.hdri)。";
+            bool hasHdri = look.lighting.hdri != null;
+            bool hasSceneSky = RenderSettings.skybox != null;
+            if (!hasHdri && !hasSceneSky)
+                return "HDRI を設定するか、シーンにスカイボックスを用意してください。";
 
             var report = new StringBuilder();
             Undo.RegisterFullObjectHierarchyUndo(look, "Quick Start");
 
-            LightingBakeOps.SetupSkybox(look);
-            report.AppendLine("✓ スカイボックス生成・環境光を Skybox に設定");
+            if (hasHdri)
+            {
+                LightingBakeOps.SetupSkybox(look);
+                report.AppendLine("✓ スカイボックス生成・環境光を Skybox に設定");
+            }
+            else
+            {
+                report.AppendLine("○ HDRI 未設定 — 既存のシーンスカイボックスを使用");
+            }
 
             LightingBakeOps.CreateOrUpdateLightingSettings(look);
             report.AppendLine("✓ Lighting Settings 生成 (Auto Generate OFF)");
