@@ -32,6 +32,15 @@ namespace Boss.LookDev
         NeutralReplace = 1, // neutral grey probe background (sky still feeds GI)
     }
 
+    /// <summary>Which renderers get marked static (ContributeGI) before baking.
+    /// ExcludeLayers keeps moving objects (avatars, fish) dynamic so they are lit
+    /// by light probes instead of lightmaps.</summary>
+    public enum StaticTargetMode
+    {
+        All = 0,
+        ExcludeLayers = 1,
+    }
+
     /// <summary>Bake backend. Mapped to UnityEditor's LightingSettings.Lightmapper
     /// in the editor ops (Core stays free of UnityEditor).</summary>
     public enum BakeBackend

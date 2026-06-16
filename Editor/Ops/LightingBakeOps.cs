@@ -148,16 +148,21 @@ namespace Boss.LookDev.Editor.Ops
 
         // ---------------- Static flags ----------------
 
-        /// <summary>Marks every mesh renderer in the scene as ContributeGI and
-        /// returns those missing lightmap UV2.</summary>
-        public static int ApplyStaticFlagsToScene(out List<GameObject> missingUv2)
+        /// <summary>Marks scene mesh renderers as ContributeGI per the look's static
+        /// policy (All, or ExcludeLayers to keep avatars/fish dynamic for probes),
+        /// and returns those missing lightmap UV2.</summary>
+        public static int ApplyStaticFlags(LookDefinition look, out List<GameObject> missingUv2)
         {
             missingUv2 = new List<GameObject>();
+            var l = look.lighting;
             int touched = 0;
             foreach (var mr in SceneBindingOps.FindAll<MeshRenderer>())
             {
                 if (mr == null) continue;
                 var go = mr.gameObject;
+                if (l.staticMode == StaticTargetMode.ExcludeLayers && (l.dynamicLayers.value & (1 << go.layer)) != 0)
+                    continue; // keep dynamic (lit by light probes)
+
                 var flags = GameObjectUtility.GetStaticEditorFlags(go);
                 flags |= StaticEditorFlags.ContributeGI;
                 GameObjectUtility.SetStaticEditorFlags(go, flags);
@@ -172,9 +177,17 @@ namespace Boss.LookDev.Editor.Ops
 
         // ---------------- Light probes ----------------
 
-        public static LightProbeGroup CreateOrUpdateProbeGroup(LookDefinition look)
+        public static LightProbeGroup CreateOrUpdateProbeGroup(LookDefinition look) =>
+            CreateProbeGroup(look, SceneBindingOps.ProbeGroupName(look),
+                look.lighting.probeArea, look.lighting.probeSpacing, look.lighting.verticalLayers);
+
+        /// <summary>Interior (room) light probes — for moving avatars inside the room.</summary>
+        public static LightProbeGroup CreateOrUpdateInteriorProbeGroup(LookDefinition look) =>
+            CreateProbeGroup(look, SceneBindingOps.InteriorProbeGroupName(look),
+                look.lighting.interiorProbeArea, look.lighting.interiorProbeSpacing, look.lighting.interiorVerticalLayers);
+
+        private static LightProbeGroup CreateProbeGroup(LookDefinition look, string name, Bounds area, float spacing, int layers)
         {
-            var name = SceneBindingOps.ProbeGroupName(look);
             var group = SceneBindingOps.FindComponentInScene<LightProbeGroup>(name);
             if (group == null)
             {
@@ -182,20 +195,17 @@ namespace Boss.LookDev.Editor.Ops
                 Undo.RegisterCreatedObjectUndo(go, "Create Light Probe Group");
                 group = go.AddComponent<LightProbeGroup>();
             }
-
-            group.probePositions = GenerateProbeGrid(look.lighting, group.transform.position).ToArray();
+            group.probePositions = GenerateProbeGrid(area, spacing, layers, group.transform.position).ToArray();
             SceneBindingOps.Parent(group.gameObject, look);
             EditorUtility.SetDirty(group);
             return group;
         }
 
-        private static List<Vector3> GenerateProbeGrid(LightingSection lighting, Vector3 groupOrigin)
+        private static List<Vector3> GenerateProbeGrid(Bounds area, float spacing, int layers, Vector3 groupOrigin)
         {
             var positions = new List<Vector3>();
-            var area = lighting.probeArea;
-            float spacing = Mathf.Max(0.1f, lighting.probeSpacing);
-            int layers = Mathf.Max(1, lighting.verticalLayers);
-
+            spacing = Mathf.Max(0.1f, spacing);
+            layers = Mathf.Max(1, layers);
             Vector3 origin = area.min;
             Vector3 size = area.size;
             int xCount = Mathf.Max(2, Mathf.CeilToInt(size.x / spacing) + 1);
@@ -220,10 +230,17 @@ namespace Boss.LookDev.Editor.Ops
 
         // ---------------- Reflection probe ----------------
 
-        public static ReflectionProbe CreateOrUpdateReflectionProbe(LookDefinition look)
+        public static ReflectionProbe CreateOrUpdateReflectionProbe(LookDefinition look) =>
+            CreateReflectionProbe(look, SceneBindingOps.ReflectionProbeName(look), look.lighting.probeArea);
+
+        /// <summary>Interior (room) reflection probe — room surfaces reflect the room,
+        /// not the sea.</summary>
+        public static ReflectionProbe CreateOrUpdateInteriorReflectionProbe(LookDefinition look) =>
+            CreateReflectionProbe(look, SceneBindingOps.InteriorReflectionProbeName(look), look.lighting.interiorProbeArea);
+
+        private static ReflectionProbe CreateReflectionProbe(LookDefinition look, string name, Bounds area)
         {
             var lighting = look.lighting;
-            var name = SceneBindingOps.ReflectionProbeName(look);
             var probe = SceneBindingOps.FindComponentInScene<ReflectionProbe>(name);
             if (probe == null)
             {
@@ -236,8 +253,8 @@ namespace Boss.LookDev.Editor.Ops
             probe.boxProjection = true;
             probe.resolution = Mathf.Clamp(Mathf.ClosestPowerOfTwo(lighting.reflectionResolution), 16, 2048);
             probe.hdr = true;
-            probe.center = lighting.probeArea.center - probe.transform.position;
-            probe.size = lighting.probeArea.size + Vector3.one * lighting.reflectionPadding * 2f;
+            probe.center = area.center - probe.transform.position;
+            probe.size = area.size + Vector3.one * lighting.reflectionPadding * 2f;
 
             if (lighting.reflectionMode == ReflectionBakeMode.NeutralReplace)
             {

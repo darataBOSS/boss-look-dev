@@ -80,6 +80,18 @@ namespace Boss.LookDev
         public int reflectionResolution = 128;
         public float reflectionPadding = 0.5f;
 
+        [Header("Static (bake targets)")]
+        public StaticTargetMode staticMode = StaticTargetMode.All;
+        [Tooltip("Layers to keep DYNAMIC (avatars / fish) so they use light probes, not lightmaps. Used when Static Mode = ExcludeLayers.")]
+        public LayerMask dynamicLayers = 0;
+
+        [Header("Interior zone (optional: a room with moving avatars)")]
+        [Tooltip("Adds a second light-probe grid + reflection probe for an interior (e.g. a glass room inside the sea). Avatars get warm room light inside / blue sea light outside automatically, by position.")]
+        public bool useInteriorZone = false;
+        public Bounds interiorProbeArea = new Bounds(Vector3.zero, new Vector3(4f, 3f, 4f));
+        public float interiorProbeSpacing = 1f;
+        [Range(1, 6)] public int interiorVerticalLayers = 2;
+
         [Header("Light rig")]
         public LightRigConfig rig = new LightRigConfig();
     }

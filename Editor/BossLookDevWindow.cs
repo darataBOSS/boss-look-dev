@@ -63,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.8.4 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.9.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -220,7 +220,16 @@ namespace Boss.LookDev.Editor
                     LightingBakeOps.CreateOrUpdateLightingSettings(look);
 
                 EditorGUILayout.Space(4);
-                EditorGUILayout.LabelField("プローブ / リフレクション", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Static (ベイク対象)", EditorStyles.boldLabel);
+                l.staticMode = (StaticTargetMode)EditorGUILayout.EnumPopup("Static モード", l.staticMode);
+                if (l.staticMode == StaticTargetMode.ExcludeLayers)
+                {
+                    l.dynamicLayers = LayerMaskField("動的レイヤー (除外: アバター/魚)", l.dynamicLayers);
+                    BossHint("選んだレイヤーは Static にせず動的のまま → ライトプローブで光ります（アバター/魚を入れる）。");
+                }
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("プローブ / リフレクション（メイン＝室外/海）", EditorStyles.boldLabel);
                 l.probeArea.center = EditorGUILayout.Vector3Field("Probe 中心", l.probeArea.center);
                 l.probeArea.size = EditorGUILayout.Vector3Field("Probe サイズ", l.probeArea.size);
                 if (Button("シーン全体から Probe 範囲を設定", BossLookDevPalette.Auto))
@@ -234,6 +243,24 @@ namespace Boss.LookDev.Editor
                 {
                     if (Button("ライトプローブ生成", BossLookDevPalette.Generate)) LightingBakeOps.CreateOrUpdateProbeGroup(look);
                     if (Button("リフレクション生成", BossLookDevPalette.Generate)) LightingBakeOps.CreateOrUpdateReflectionProbe(look);
+                }
+
+                EditorGUILayout.Space(4);
+                l.useInteriorZone = EditorGUILayout.Toggle("室内ゾーンを使う（部屋＋動くアバター）", l.useInteriorZone);
+                if (l.useInteriorZone)
+                {
+                    BossHint("室内用のライトプローブ＋リフレクションを追加。アバターは位置で『室内=暖色 / 室外=青』に自動で切り替わります（ランタイムのコード不要）。");
+                    l.interiorProbeArea.center = EditorGUILayout.Vector3Field("室内 中心", l.interiorProbeArea.center);
+                    l.interiorProbeArea.size = EditorGUILayout.Vector3Field("室内 サイズ", l.interiorProbeArea.size);
+                    if (Button("選択中から室内範囲を設定", BossLookDevPalette.Auto))
+                        if (TrySelectionBounds(out var ib)) { l.interiorProbeArea = ib; EditorUtility.SetDirty(look); }
+                    l.interiorProbeSpacing = EditorGUILayout.FloatField("室内 Probe 間隔 (m)", l.interiorProbeSpacing);
+                    l.interiorVerticalLayers = EditorGUILayout.IntSlider("室内 縦レイヤー", l.interiorVerticalLayers, 1, 6);
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (Button("室内ライトプローブ生成", BossLookDevPalette.Generate)) LightingBakeOps.CreateOrUpdateInteriorProbeGroup(look);
+                        if (Button("室内リフレクション生成", BossLookDevPalette.Generate)) LightingBakeOps.CreateOrUpdateInteriorReflectionProbe(look);
+                    }
                 }
 
                 EditorGUILayout.Space(4);
@@ -813,6 +840,41 @@ namespace Boss.LookDev.Editor
             var prev = GUI.color; GUI.color = new Color(1f, 1f, 1f, 0.6f);
             EditorGUILayout.LabelField(text, EditorStyles.wordWrappedMiniLabel);
             GUI.color = prev;
+        }
+
+        private static bool TrySelectionBounds(out Bounds bounds)
+        {
+            bounds = default; bool any = false;
+            foreach (var go in Selection.gameObjects)
+            {
+                if (go == null) continue;
+                foreach (var r in go.GetComponentsInChildren<Renderer>())
+                {
+                    if (r == null) continue;
+                    if (!any) { bounds = r.bounds; any = true; } else bounds.Encapsulate(r.bounds);
+                }
+            }
+            return any;
+        }
+
+        /// <summary>A LayerMask field that lists only named layers (no internal APIs).</summary>
+        private static LayerMask LayerMaskField(string label, LayerMask mask)
+        {
+            var layers = new List<string>();
+            var indices = new List<int>();
+            for (int i = 0; i < 32; i++)
+            {
+                var n = LayerMask.LayerToName(i);
+                if (!string.IsNullOrEmpty(n)) { layers.Add(n); indices.Add(i); }
+            }
+            int compact = 0;
+            for (int i = 0; i < indices.Count; i++)
+                if ((mask.value & (1 << indices[i])) != 0) compact |= (1 << i);
+            int newCompact = EditorGUILayout.MaskField(label, compact, layers.ToArray());
+            int newMask = 0;
+            for (int i = 0; i < indices.Count; i++)
+                if ((newCompact & (1 << i)) != 0) newMask |= (1 << indices[i]);
+            return newMask;
         }
     }
 }

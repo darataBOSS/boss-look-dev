@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-06-16
+
+### Added — 室内/室外ゾーン対応（深海の観測ルーム向け）
+- **2ゾーンのプローブ**: 既存の「メイン(室外/海)」に加え、**室内ゾーン**のライトプローブ＋リフレクションプローブを生成可能に（`useInteriorZone`）。動くアバターが室内=暖色/室外=青へ**位置で自動補間**（ランタイム切替コード不要）。
+- **Static 対象の選択**: `StaticTargetMode`(All / ExcludeLayers)。ExcludeLayers で動的レイヤー(アバター/魚)を Static から除外→ライトプローブで光る。`ApplyStaticFlagsToScene`→`ApplyStaticFlags(look,...)` に変更。
+- ウィンドウ: 「Static(ベイク対象)」「室内ゾーン」UI、LayerMask フィールド、選択範囲からの室内 Bounds 設定。
+- docs/underwater-room.md（観測ルーム手順書）。
+- 検証: 両環境 CSエラー0、URP で Static除外＋室内/室外プローブ生成を実走確認。
+
 ## [0.8.4] - 2026-06-16
 
 ### Fixed

@@ -69,8 +69,9 @@ namespace Boss.LookDev.Editor.Ops
                 report.AppendLine("⚠ MeshRenderer が無いためプローブ範囲は既定値");
             }
 
-            int flagged = LightingBakeOps.ApplyStaticFlagsToScene(out var missingUv2);
-            report.AppendLine($"✓ ContributeGI 付与 ({flagged} 個)");
+            int flagged = LightingBakeOps.ApplyStaticFlags(look, out var missingUv2);
+            report.AppendLine($"✓ ContributeGI 付与 ({flagged} 個" +
+                (look.lighting.staticMode == StaticTargetMode.ExcludeLayers ? "・動的レイヤーは除外" : "") + ")");
             if (missingUv2.Count > 0)
                 report.AppendLine($"⚠ UV2 が空のメッシュ {missingUv2.Count} 個 (Generate Lightmap UVs を確認)");
 
@@ -79,6 +80,13 @@ namespace Boss.LookDev.Editor.Ops
 
             LightingBakeOps.CreateOrUpdateReflectionProbe(look);
             report.AppendLine("✓ リフレクションプローブ生成 (Baked)");
+
+            if (look.lighting.useInteriorZone)
+            {
+                LightingBakeOps.CreateOrUpdateInteriorProbeGroup(look);
+                LightingBakeOps.CreateOrUpdateInteriorReflectionProbe(look);
+                report.AppendLine("✓ 室内ゾーンのライトプローブ＋リフレクション生成");
+            }
 
             if (!LightRigAuthoring.ColorTemperatureSupported)
             {

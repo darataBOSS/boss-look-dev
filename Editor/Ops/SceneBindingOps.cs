@@ -18,6 +18,8 @@ namespace Boss.LookDev.Editor.Ops
         // Generated object names (stable keys for re-finding).
         public static string ProbeGroupName(LookDefinition look) => $"{look.lookName} Light Probes";
         public static string ReflectionProbeName(LookDefinition look) => $"{look.lookName} Reflection Probe";
+        public static string InteriorProbeGroupName(LookDefinition look) => $"{look.lookName} Interior Light Probes";
+        public static string InteriorReflectionProbeName(LookDefinition look) => $"{look.lookName} Interior Reflection Probe";
         public static string RigRootName(LookDefinition look) => $"{look.lookName} Light Rig";
         public static string VolumeName(LookDefinition look) => $"{look.lookName} Volume";
 
