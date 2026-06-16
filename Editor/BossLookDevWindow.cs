@@ -62,7 +62,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.6.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.7.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -269,6 +269,15 @@ namespace Boss.LookDev.Editor
                     break;
             }
 
+            if (rig.rigType != RigType.CeilingGrid)
+            {
+                EditorGUILayout.LabelField("コースティクス (水中の光・任意)", EditorStyles.miniBoldLabel);
+                rig.causticsCookie = (Texture)EditorGUILayout.ObjectField("Cookie", rig.causticsCookie, typeof(Texture), false);
+                using (new EditorGUI.DisabledScope(rig.causticsCookie == null))
+                    rig.causticsCookieSize = EditorGUILayout.FloatField("Cookie サイズ", rig.causticsCookieSize);
+                BossHint("主ライトに cookie を割り当て（静的）。揺らぎのアニメは『強化チェックリスト』参照。");
+            }
+
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (Button("リグを生成 / 更新", BossLookDevPalette.Generate))
@@ -301,29 +310,53 @@ namespace Boss.LookDev.Editor
 
         private void DrawBackground()
         {
-            using (Card("背景 (カメラ)", BossLookDevPalette.ForContext(look.targetContext)))
+            using (Card("背景・環境光", BossLookDevPalette.ForContext(look.targetContext)))
             {
-                BossHint("ベイクは常にスカイボックス込みで焼きます。ここはベイク後の『背景の見せ方』だけを切替えます (ライティングは保持)。");
-                var cam = Camera.main;
-                if (cam == null)
+                BossHint("ベイク後の『見せ方』。VR=スカイボックス、深海等のスタイライズVR=単色/グラデ、AR=透過(単色のα=0)。Look に保存され再現可能。");
+                var bg = look.background;
+                EditorGUI.BeginChangeCheck();
+                bg.enabled = EditorGUILayout.Toggle("ツールで背景・環境光を管理", bg.enabled);
+                using (new EditorGUI.DisabledScope(!bg.enabled))
                 {
-                    EditorGUILayout.HelpBox("Main Camera が見つかりません。", MessageType.Info);
-                    return;
+                    EditorGUILayout.LabelField("背景 (カメラ)", EditorStyles.miniBoldLabel);
+                    bg.mode = (BackgroundMode)EditorGUILayout.EnumPopup("背景モード", bg.mode);
+                    switch (bg.mode)
+                    {
+                        case BackgroundMode.Skybox:
+                            BossHint("HDRI / CG スカイボックスを表示（VR）。");
+                            break;
+                        case BackgroundMode.SolidColor:
+                            bg.solidColor = EditorGUILayout.ColorField(new GUIContent("単色 (α=0 で透過 / AR)"), bg.solidColor, true, true, false);
+                            break;
+                        case BackgroundMode.Gradient:
+                            bg.gradientTop = EditorGUILayout.ColorField("上 (浅い / 水面側)", bg.gradientTop);
+                            bg.gradientBottom = EditorGUILayout.ColorField("下 (深い)", bg.gradientBottom);
+                            bg.gradientExponent = EditorGUILayout.Slider("グラデ強さ", bg.gradientExponent, 0.2f, 4f);
+                            break;
+                    }
+                    EditorGUILayout.LabelField("環境光", EditorStyles.miniBoldLabel);
+                    bg.ambientMode = (LookAmbientMode)EditorGUILayout.EnumPopup("環境光モード", bg.ambientMode);
+                    switch (bg.ambientMode)
+                    {
+                        case LookAmbientMode.Flat:
+                            bg.ambientFlat = EditorGUILayout.ColorField("環境色", bg.ambientFlat);
+                            break;
+                        case LookAmbientMode.Gradient:
+                            bg.ambientSky = EditorGUILayout.ColorField("上", bg.ambientSky);
+                            bg.ambientEquator = EditorGUILayout.ColorField("中", bg.ambientEquator);
+                            bg.ambientGround = EditorGUILayout.ColorField("下", bg.ambientGround);
+                            break;
+                    }
+                    bg.ambientIntensity = EditorGUILayout.Slider("環境光強度", bg.ambientIntensity, 0f, 8f);
                 }
-                bool sky = LightingBakeOps.IsSkyboxShown();
-                EditorGUILayout.LabelField("現在: " + (sky ? "スカイボックス表示 (VR向け)" : "透過 (AR向け)"), EditorStyles.miniBoldLabel);
-                using (new EditorGUILayout.HorizontalScope())
+                if (EditorGUI.EndChangeCheck())
                 {
-                    if (Button("スカイボックス表示 (VR)", BossLookDevPalette.VR))
-                        LightingBakeOps.SetCameraBackground(true);
-                    if (Button("透過にする (AR)", BossLookDevPalette.AR))
-                        LightingBakeOps.SetCameraBackground(false);
+                    EditorUtility.SetDirty(look);
+                    if (bg.enabled) BackgroundOps.Apply(look); // live
                 }
-                if (look.targetContext == LookContext.VR && !sky)
-                    EditorGUILayout.HelpBox("VR は通常スカイボックスを表示します (CG背景)。", MessageType.None);
-                if (look.targetContext == LookContext.AR && sky)
-                    EditorGUILayout.HelpBox("AR は通常『透過』にします (実世界を背景に)。", MessageType.None);
-                BossHint("MR (VR↔MR) は State 切替で自動的に変わります。ここは単体プレビュー / 静的 AR 用。");
+                if (Button("背景・環境光を適用", BossLookDevPalette.Generate))
+                    BackgroundOps.Apply(look);
+                BossHint("深海VR例: 背景=グラデ(上=明るい青/下=濃紺)・環境光=グラデ・フォグ濃いめ＋寒色グレード。MR は State 切替で自動。");
             }
         }
 
@@ -590,6 +623,14 @@ namespace Boss.LookDev.Editor
                 BossHint("実機で事故りやすい設定を自動チェック: 未ベイク / 純白アルベド / UV2 欠落 / 色空間 / カメラHDR / 色温度 / プローブ欠落 など。納品前に自分で気付くため。");
                 if (Button("🔍 チェックを実行", BossLookDevPalette.Auto, 26f))
                     _issues = LookValidator.Run(look);
+
+                if (Button("📄 海の質感 強化チェックリストを生成 (日本語)", BossLookDevPalette.Auto))
+                {
+                    var p = EnhancementChecklistGenerator.Generate(look);
+                    var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(p);
+                    if (asset != null) EditorGUIUtility.PingObject(asset);
+                    ShowNotification(new GUIContent("強化チェックリストを生成しました"));
+                }
 
                 if (_issues == null) return;
                 foreach (var issue in _issues)

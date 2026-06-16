@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-06-16
+
+### Added — スタイライズ背景・環境光 / コースティクス / 強化チェックリスト（深海プリセット駆動）
+- **BackgroundSection**: 背景（Skybox / 単色 / 縦グラデ）＋環境光（Skybox / Flat / Gradient=Trilight）を Look に保存。`BackgroundOps` が適用、縦グラデは生成スカイボックスシェーダ（Built-in/URP 両対応）。深海等のスタイライズ VR が **1アセットで自己完結・再現可能**に。
+- ライトリグに **caustics cookie スロット**（主ライトへ静的割り当て。スクロールアニメは強化チェックリスト参照）。
+- **EnhancementChecklistGenerator**: 「用意するとより海らしくなる」プロジェクト側タスク（コースティクス/ゴッドレイ/パーティクル/PBR/height fog/反射/快適性）を日本語 Markdown で自動生成。
+- ウィンドウ: 「背景・環境光」カード刷新、リグに caustics スロット、検証カードに強化チェックリスト生成ボタン。
+- QuickStart: HDRI 未設定時は既存シーンのスカイボックスにフォールバック。
+- docs/usage.md（使い方ガイド）。
+- 検証: 両環境 CS エラー0、URP で深海ルック（グラデ背景・環境光・寒色グレード・フォグ）を実走しスクショ確認。
+
 ## [0.6.0] - 2026-06-16
 
 ### Added — ポスト詳細設定 (カラー「詳細設定」折りたたみ)

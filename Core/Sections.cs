@@ -41,6 +41,11 @@ namespace Boss.LookDev
         public float gridIntensity = 1.5f;
         public float gridKelvin = 4500f;
         [Range(1f, 179f)] public float gridSpotAngle = 100f;
+
+        [Header("Caustics (underwater): assigns a cookie to the rig's main light")]
+        [Tooltip("A looping caustics texture. Static assignment is done by the tool; animating the scroll is your shader/script task (see the enhancement checklist).")]
+        public Texture causticsCookie;
+        public float causticsCookieSize = 30f;
     }
 
     /// <summary>Foundation layer (spec §3.1, §4.0): full bake + HDRI/IBL + probes
@@ -140,6 +145,32 @@ namespace Boss.LookDev
         public bool enabled = false;
         [Range(0f, 1f)] public float opacity = 0.6f;
         [Range(1f, 6f)] public float sizeMultiplier = 2f;
+    }
+
+    /// <summary>Stylized background + ambient (spec §3.2). Lets a look fully
+    /// own how the environment reads — e.g. deep-sea VR: solid/gradient blue
+    /// background + colored flat/gradient ambient — so it's reproducible from
+    /// the asset alone (not set by hand). When disabled, the tool leaves the
+    /// scene's background/ambient untouched.</summary>
+    [Serializable]
+    public class BackgroundSection
+    {
+        public bool enabled = false;
+
+        [Header("Background (camera)")]
+        public BackgroundMode mode = BackgroundMode.Skybox;
+        public Color solidColor = new Color(0.05f, 0.16f, 0.20f, 1f);
+        public Color gradientTop = new Color(0.10f, 0.30f, 0.38f, 1f);
+        public Color gradientBottom = new Color(0.01f, 0.05f, 0.08f, 1f);
+        [Range(0.2f, 4f)] public float gradientExponent = 1f;
+
+        [Header("Ambient (indirect light)")]
+        public LookAmbientMode ambientMode = LookAmbientMode.Skybox;
+        [Range(0f, 8f)] public float ambientIntensity = 1f;
+        public Color ambientFlat = new Color(0.10f, 0.20f, 0.24f, 1f);
+        public Color ambientSky = new Color(0.12f, 0.28f, 0.34f, 1f);
+        public Color ambientEquator = new Color(0.06f, 0.16f, 0.20f, 1f);
+        public Color ambientGround = new Color(0.02f, 0.05f, 0.07f, 1f);
     }
 
     /// <summary>Material overrides layer. Reserved seam in v1 (spec §6) — boundary

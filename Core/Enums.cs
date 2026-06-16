@@ -28,6 +28,27 @@ namespace Boss.LookDev
         STYLY = 1,   // STYLY (PlayMaker): editor authoring + bake only, no runtime C#
     }
 
+    /// <summary>How the camera background is rendered (spec §3.2 stylized).
+    /// Skybox = HDRI/CG sky (VR). SolidColor = flat color (stylized VR e.g. deep
+    /// sea, or AR uses transparent via state). Gradient = vertical gradient sky
+    /// (depth feel) via a generated skybox material.</summary>
+    public enum BackgroundMode
+    {
+        Skybox = 0,
+        SolidColor = 1,
+        Gradient = 2,
+    }
+
+    /// <summary>Ambient (indirect) light source. Skybox = from the skybox SH.
+    /// Flat = single color. Gradient = sky/equator/ground (Unity Trilight) —
+    /// great for underwater (brighter above, darker below).</summary>
+    public enum LookAmbientMode
+    {
+        Skybox = 0,
+        Flat = 1,
+        Gradient = 2,
+    }
+
     /// <summary>Tonemapping operator for the color layer (SelfApp / HDR path).
     /// STYLY's LDR/Gamma path ignores this (no tonemapper).</summary>
     public enum TonemapMode

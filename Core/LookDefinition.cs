@@ -29,6 +29,7 @@ namespace Boss.LookDev
         public LightingSection lighting = new LightingSection();
         public ColorSection color = new ColorSection();
         public AtmosphereSection atmosphere = new AtmosphereSection();
+        public BackgroundSection background = new BackgroundSection();
         public GroundShadowSection groundShadow = new GroundShadowSection();
         public OverridesSection overrides = new OverridesSection();
 
