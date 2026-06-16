@@ -1,0 +1,14 @@
+{
+    "name": "Boss.LookDev.Core",
+    "rootNamespace": "Boss.LookDev",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

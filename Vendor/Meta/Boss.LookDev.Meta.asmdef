@@ -1,0 +1,23 @@
+{
+    "name": "Boss.LookDev.Meta",
+    "rootNamespace": "Boss.LookDev.Meta",
+    "references": [
+        "Boss.LookDev.Core",
+        "Boss.LookDev.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.sdk.core",
+            "expression": "60.0.0",
+            "define": "BOSS_LOOK_DEV_HAS_META"
+        }
+    ],
+    "noEngineReferences": false
+}

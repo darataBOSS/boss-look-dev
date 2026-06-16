@@ -1,0 +1,23 @@
+{
+    "name": "Boss.LookDev.BuiltIn",
+    "rootNamespace": "Boss.LookDev.BuiltIn",
+    "references": [
+        "Boss.LookDev.Core",
+        "Unity.Postprocessing.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.postprocessing",
+            "expression": "3.0.0",
+            "define": "BOSS_LOOK_DEV_HAS_PPV2"
+        }
+    ],
+    "noEngineReferences": false
+}

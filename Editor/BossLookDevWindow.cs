@@ -1,0 +1,700 @@
+using System;
+using System.Collections.Generic;
+using Boss.LookDev.Editor.Ops;
+using UnityEditor;
+using UnityEngine;
+
+namespace Boss.LookDev.Editor
+{
+    /// <summary>
+    /// Phase-3 authoring window (spec §4, §11): lighting-first, colorful, card-based.
+    /// Drives the common-core lighting/bake ops and the active pipeline's color
+    /// adapter. "Quick start → looks real → bake" in one place, plus blend,
+    /// before/after snapshot, and the validator.
+    /// </summary>
+    public class BossLookDevWindow : EditorWindow
+    {
+        [SerializeField] private LookDefinition look;
+        private Vector2 _scroll;
+
+        // Lookbook / blend state
+        private LookDefinition _blendA, _blendB;
+        private float _blendT = 0.5f;
+        private string _snapshot;
+        private bool _showAdvancedColor;
+
+        // Validator
+        private List<LookIssue> _issues;
+
+        [MenuItem("BOSS/Look Dev")]
+        public static void Open()
+        {
+            var w = GetWindow<BossLookDevWindow>("BOSS Look Dev");
+            w.minSize = new Vector2(460f, 560f);
+            w.Show();
+        }
+
+        private void OnInspectorUpdate()
+        {
+            if (Lightmapping.isRunning) Repaint();
+        }
+
+        private void OnGUI()
+        {
+            DrawHeader();
+            if (look == null) return;
+
+            _scroll = EditorGUILayout.BeginScrollView(_scroll);
+            DrawQuickStart();
+            DrawLighting();
+            DrawBackground();
+            DrawColor();
+            DrawAtmosphere();
+            if (look.targetContext == LookContext.AR) DrawGroundShadow();
+            DrawStates();
+            DrawLookbook();
+            DrawValidate();
+            EditorGUILayout.EndScrollView();
+        }
+
+        // ---------------- Header ----------------
+
+        private void DrawHeader()
+        {
+            EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("v0.6.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+
+            EditorGUI.BeginChangeCheck();
+            look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
+            if (EditorGUI.EndChangeCheck()) _issues = null;
+
+            if (look == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "Look Definition = ルック設定一式を保存するアセット (旧ツールのプリセット相当)。\n" +
+                    "下のボタンで新規作成するか、既存をスロットにドラッグしてください。",
+                    MessageType.Info);
+                if (Button("＋ 新規 Look を作成", BossLookDevPalette.Generate, 28f))
+                    CreateNewLook();
+                return;
+            }
+
+            var active = RenderPipelineDetector.Active;
+
+            // Pipeline is auto-detected (read-only).
+            ColorChip("Pipeline (自動)", RenderPipelineDetector.DisplayName, BossLookDevPalette.ForPipeline(active));
+
+            // Target / Context are editable here (color-coded dropdowns).
+            EditorGUI.BeginChangeCheck();
+            look.target = (LookTarget)ColoredEnumPopup("Target (出力先)", look.target,
+                look.target == LookTarget.STYLY ? BossLookDevPalette.MR : BossLookDevPalette.VR);
+            look.targetContext = (LookContext)ColoredEnumPopup("Context (モダリティ)", look.targetContext,
+                BossLookDevPalette.ForContext(look.targetContext));
+            if (EditorGUI.EndChangeCheck())
+            {
+                // STYLY is Built-in only (spec §3.2/§3.3): keep targetPipeline consistent.
+                if (look.target == LookTarget.STYLY) look.targetPipeline = LookPipeline.BuiltIn;
+                EditorUtility.SetDirty(look);
+                _issues = null;
+            }
+
+            // Guidance / mismatch warnings.
+            if (look.target == LookTarget.STYLY && active == LookPipeline.URP)
+                EditorGUILayout.HelpBox(
+                    "Target=STYLY は Built-in 専用です。現在は URP プロジェクトのため、STYLY 向け制作は Built-in プロジェクトで行ってください。",
+                    MessageType.Warning);
+            else if (look.IsPipelineMismatch(active))
+                EditorGUILayout.HelpBox(
+                    $"対象パイプライン ({look.targetPipeline}) が現在 ({active}) と不一致。プリセットは移植不可 (警告のみ)。",
+                    MessageType.Warning);
+
+            if (look.targetContext != LookContext.VR)
+                BossHint("AR / MR ではスカイボックス・IBL・フォグは通常無効。実環境が背後に来る前提でニュートラル/スタイライズに作ります。");
+
+            EditorGUILayout.Space(4);
+        }
+
+        // ---------------- Quick start ----------------
+
+        private void DrawQuickStart()
+        {
+            using (Card("⚡ クイックスタート (良い既定値)", BossLookDevPalette.Generate))
+            {
+                EditorGUILayout.HelpBox("HDRI を指定して1ボタン。スカイボックス〜ライト〜プローブ〜カラーまで一括し、ベイク直前まで持っていきます。", MessageType.None);
+                look.lighting.hdri = (Texture)EditorGUILayout.ObjectField("HDRI", look.lighting.hdri, typeof(Texture), false);
+
+                using (new EditorGUI.DisabledScope(look.lighting.hdri == null))
+                    if (Button("⚡ クイックスタート実行", BossLookDevPalette.Generate, 28f))
+                    {
+                        var report = QuickStartOps.Run(look);
+                        Debug.Log("[BOSS Look Dev] Quick Start:\n" + report);
+                        EditorUtility.DisplayDialog("BOSS Look Dev — クイックスタート", report, "OK");
+                    }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField("ベイクプリセット", GUILayout.Width(110));
+                    if (Button("📱 モバイル", BossLookDevPalette.Auto)) QuickStartOps.ApplyBakePreset(look, false);
+                    if (Button("✨ 高品質", BossLookDevPalette.Auto)) QuickStartOps.ApplyBakePreset(look, true);
+                }
+            }
+        }
+
+        // ---------------- Lighting ----------------
+
+        private void DrawLighting()
+        {
+            using (Card("ライティング (土台)", BossLookDevPalette.Lighting))
+            {
+                BossHint("リアルさの土台。HDRI で環境光 → ベイク → プローブ/リフレクション → ライトリグ。ここを固めてから色を乗せます。");
+                var l = look.lighting;
+
+                EditorGUILayout.LabelField("環境光 / HDRI", EditorStyles.boldLabel);
+                EditorGUI.BeginChangeCheck();
+                l.environmentIntensity = EditorGUILayout.Slider("環境光強度", l.environmentIntensity, 0f, 8f);
+                l.skyboxExposure = EditorGUILayout.Slider("スカイボックス露出", l.skyboxExposure, 0f, 8f);
+                l.skyboxRotation = EditorGUILayout.Slider("スカイボックス回転", l.skyboxRotation, 0f, 360f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    LightingBakeOps.ApplyEnvironmentLive(look); // live preview
+                    EditorUtility.SetDirty(look);
+                }
+                using (new EditorGUI.DisabledScope(l.hdri == null))
+                    if (Button("スカイボックスを生成 / 更新", BossLookDevPalette.Generate))
+                        LightingBakeOps.SetupSkybox(look);
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("ベイク設定", EditorStyles.boldLabel);
+                l.bakeBackend = (BakeBackend)EditorGUILayout.EnumPopup("バックエンド", l.bakeBackend);
+                l.lightmapResolution = EditorGUILayout.FloatField("Lightmap 解像度", l.lightmapResolution);
+                l.atlasSize = EditorGUILayout.IntPopup("Atlas Size", l.atlasSize,
+                    new[] { "512", "1024", "2048", "4096" }, new[] { 512, 1024, 2048, 4096 });
+                l.directSamples = EditorGUILayout.IntField("Direct Samples", l.directSamples);
+                l.indirectSamples = EditorGUILayout.IntField("Indirect Samples", l.indirectSamples);
+                l.bounces = EditorGUILayout.IntSlider("Bounces", l.bounces, 0, 4);
+                l.ambientOcclusion = EditorGUILayout.Toggle("Ambient Occlusion (bake)", l.ambientOcclusion);
+                if (Button("Lighting Settings を生成 / 更新", BossLookDevPalette.Generate))
+                    LightingBakeOps.CreateOrUpdateLightingSettings(look);
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("プローブ / リフレクション", EditorStyles.boldLabel);
+                l.probeArea.center = EditorGUILayout.Vector3Field("Probe 中心", l.probeArea.center);
+                l.probeArea.size = EditorGUILayout.Vector3Field("Probe サイズ", l.probeArea.size);
+                if (Button("シーン全体から Probe 範囲を設定", BossLookDevPalette.Auto))
+                    if (QuickStartOps.TryComputeSceneBounds(out var b)) { b.Expand(0.5f); l.probeArea = b; EditorUtility.SetDirty(look); }
+                l.probeSpacing = EditorGUILayout.FloatField("Probe 間隔 (m)", l.probeSpacing);
+                l.verticalLayers = EditorGUILayout.IntSlider("縦レイヤー", l.verticalLayers, 1, 6);
+                l.reflectionMode = (ReflectionBakeMode)EditorGUILayout.EnumPopup("Reflection モード", l.reflectionMode);
+                l.reflectionResolution = EditorGUILayout.IntPopup("Reflection 解像度", Mathf.ClosestPowerOfTwo(l.reflectionResolution),
+                    new[] { "64", "128", "256", "512" }, new[] { 64, 128, 256, 512 });
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (Button("ライトプローブ生成", BossLookDevPalette.Generate)) LightingBakeOps.CreateOrUpdateProbeGroup(look);
+                    if (Button("リフレクション生成", BossLookDevPalette.Generate)) LightingBakeOps.CreateOrUpdateReflectionProbe(look);
+                }
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("マテリアル底上げ", EditorStyles.boldLabel);
+                if (Button("PBR を正規化 (白アルベド抑制 / 鏡面緩和 / instancing)", BossLookDevPalette.Auto))
+                {
+                    var ma = AdapterRegistry.GetActiveMaterialAdapter();
+                    if (ma != null)
+                    {
+                        int n = ma.NormalizePbr(new EditorLookScope(look));
+                        ShowNotification(new GUIContent($"{n} マテリアルを底上げしました"));
+                    }
+                    else ShowNotification(new GUIContent("マテリアルアダプタ未対応 (Built-in はフェーズ4)"));
+                }
+
+                EditorGUILayout.Space(4);
+                DrawRig();
+
+                EditorGUILayout.Space(6);
+                DrawBake();
+            }
+        }
+
+        private void DrawRig()
+        {
+            var rig = look.lighting.rig;
+            EditorGUILayout.LabelField("ライトリグ", EditorStyles.boldLabel);
+            rig.rigType = (RigType)EditorGUILayout.EnumPopup("リグタイプ", rig.rigType);
+
+            switch (rig.rigType)
+            {
+                case RigType.ThreePoint:
+                    rig.rigLightKind = (RigLightKind)EditorGUILayout.EnumPopup("ライト種別", rig.rigLightKind);
+                    rig.keyIntensity = EditorGUILayout.FloatField("Key 強度", rig.keyIntensity);
+                    rig.keyFillRatio = EditorGUILayout.Slider("Key:Fill 比", rig.keyFillRatio, 1f, 8f);
+                    rig.keyKelvin = EditorGUILayout.FloatField("Key 色温度 (K)", rig.keyKelvin);
+                    rig.fillKelvin = EditorGUILayout.FloatField("Fill 色温度 (K)", rig.fillKelvin);
+                    rig.backKelvin = EditorGUILayout.FloatField("Back 色温度 (K)", rig.backKelvin);
+                    if (rig.rigLightKind == RigLightKind.Spot)
+                        rig.spotAngle = EditorGUILayout.Slider("Spot 角度", rig.spotAngle, 1f, 179f);
+                    else
+                        rig.areaSize = EditorGUILayout.Vector2Field("Area サイズ", rig.areaSize);
+                    break;
+
+                case RigType.Sun:
+                    rig.sunElevation = EditorGUILayout.Slider("太陽高度", rig.sunElevation, 0f, 90f);
+                    rig.sunAzimuth = EditorGUILayout.Slider("方位角", rig.sunAzimuth, 0f, 360f);
+                    rig.sunIntensity = EditorGUILayout.FloatField("太陽強度", rig.sunIntensity);
+                    rig.sunKelvin = EditorGUILayout.FloatField("太陽色温度 (K)", rig.sunKelvin);
+                    rig.skyFill = EditorGUILayout.Toggle("空フィル", rig.skyFill);
+                    using (new EditorGUI.DisabledScope(!rig.skyFill))
+                        rig.skyFillRatio = EditorGUILayout.Slider("太陽:フィル比", rig.skyFillRatio, 2f, 10f);
+                    using (new EditorGUI.DisabledScope(!HdriSunOps.CanAlign(look)))
+                        if (Button("🧭 HDRI の太陽に向きを合わせる", BossLookDevPalette.Auto))
+                        {
+                            if (HdriSunOps.AlignSunToHdri(look, out string msg))
+                            {
+                                if (GameObject.Find(SceneBindingOps.RigRootName(look)) != null)
+                                    LightRigAuthoring.CreateOrUpdateRig(look, QuickStartOps.ResolveSubject());
+                                ShowNotification(new GUIContent("太陽の向きを合わせました"));
+                            }
+                            Debug.Log("[BOSS Look Dev] " + msg);
+                        }
+                    break;
+
+                case RigType.CeilingGrid:
+                    EditorGUILayout.HelpBox("プローブ範囲を天井とみなし、下向きライトを格子状に配置します (全 Baked)。", MessageType.None);
+                    rig.gridLightKind = (GridLightKind)EditorGUILayout.EnumPopup("ライト種別", rig.gridLightKind);
+                    rig.gridRows = EditorGUILayout.IntSlider("行数 (奥行)", rig.gridRows, 1, 8);
+                    rig.gridColumns = EditorGUILayout.IntSlider("列数 (横)", rig.gridColumns, 1, 8);
+                    rig.gridIntensity = EditorGUILayout.FloatField("強度 (1灯)", rig.gridIntensity);
+                    rig.gridKelvin = EditorGUILayout.FloatField("色温度 (K)", rig.gridKelvin);
+                    if (rig.gridLightKind == GridLightKind.Spot)
+                        rig.gridSpotAngle = EditorGUILayout.Slider("Spot 角度", rig.gridSpotAngle, 1f, 179f);
+                    EditorGUILayout.LabelField($"合計 {rig.gridRows * rig.gridColumns} 灯", EditorStyles.miniLabel);
+                    break;
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (Button("リグを生成 / 更新", BossLookDevPalette.Generate))
+                    LightRigAuthoring.CreateOrUpdateRig(look, QuickStartOps.ResolveSubject());
+                if (Button("削除", BossLookDevPalette.Danger, 22f, 64f))
+                    LightRigAuthoring.DeleteRig(look);
+            }
+            if (!LightRigAuthoring.ColorTemperatureSupported)
+                EditorGUILayout.HelpBox("色温度 (Kelvin) が無効です。クイックスタート/診断で有効化できます。", MessageType.Warning);
+        }
+
+        private void DrawBake()
+        {
+            bool canBake = LightingBakeOps.CanBake(look, out string reason);
+            if (!canBake) EditorGUILayout.HelpBox(reason, MessageType.Warning);
+
+            using (new EditorGUI.DisabledScope(!canBake || Lightmapping.isRunning))
+                if (Button("🔥 ベイクを実行", BossLookDevPalette.Bake, 28f))
+                    LightingBakeOps.StartBake(look);
+
+            if (Lightmapping.isRunning)
+            {
+                var rect = GUILayoutUtility.GetRect(18f, 22f, GUILayout.ExpandWidth(true));
+                EditorGUI.ProgressBar(rect, Lightmapping.buildProgress, $"Baking... {Lightmapping.buildProgress * 100f:F1}%");
+                if (Button("キャンセル", BossLookDevPalette.Danger)) LightingBakeOps.CancelBake();
+            }
+        }
+
+        // ---------------- Background (skybox show / transparent) ----------------
+
+        private void DrawBackground()
+        {
+            using (Card("背景 (カメラ)", BossLookDevPalette.ForContext(look.targetContext)))
+            {
+                BossHint("ベイクは常にスカイボックス込みで焼きます。ここはベイク後の『背景の見せ方』だけを切替えます (ライティングは保持)。");
+                var cam = Camera.main;
+                if (cam == null)
+                {
+                    EditorGUILayout.HelpBox("Main Camera が見つかりません。", MessageType.Info);
+                    return;
+                }
+                bool sky = LightingBakeOps.IsSkyboxShown();
+                EditorGUILayout.LabelField("現在: " + (sky ? "スカイボックス表示 (VR向け)" : "透過 (AR向け)"), EditorStyles.miniBoldLabel);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (Button("スカイボックス表示 (VR)", BossLookDevPalette.VR))
+                        LightingBakeOps.SetCameraBackground(true);
+                    if (Button("透過にする (AR)", BossLookDevPalette.AR))
+                        LightingBakeOps.SetCameraBackground(false);
+                }
+                if (look.targetContext == LookContext.VR && !sky)
+                    EditorGUILayout.HelpBox("VR は通常スカイボックスを表示します (CG背景)。", MessageType.None);
+                if (look.targetContext == LookContext.AR && sky)
+                    EditorGUILayout.HelpBox("AR は通常『透過』にします (実世界を背景に)。", MessageType.None);
+                BossHint("MR (VR↔MR) は State 切替で自動的に変わります。ここは単体プレビュー / 静的 AR 用。");
+            }
+        }
+
+        // ---------------- Color ----------------
+
+        private void DrawColor()
+        {
+            using (Card("カラー", BossLookDevPalette.Color_))
+            {
+                BossHint("ライティングの上に乗せる色味の最終調整 (露出・コントラスト・彩度・色温度・Bloom・Vignette)。");
+                bool styly = look.target == LookTarget.STYLY;
+                var active = RenderPipelineDetector.Active;
+                var adapter = styly ? null : AdapterRegistry.GetColorAdapter(active);
+
+                if (styly)
+                {
+                    EditorGUILayout.HelpBox(
+                        "STYLY: ポストは STYLY 側 (PPv1 / PlayMaker) に委譲。ここでの色は『ライティング/環境光への焼き込み』で反映され、Gamma でもベイク結果として残ります。",
+                        MessageType.Info);
+                }
+                else if (adapter == null)
+                {
+                    EditorGUILayout.HelpBox(
+                        active == LookPipeline.BuiltIn
+                            ? "Built-in の color アダプタ (PPv2) が見つかりません。com.unity.postprocessing を追加してください。"
+                            : "color アダプタ未検出。URP をインストールしてください。",
+                        MessageType.Info);
+                    return;
+                }
+
+                var c = look.color;
+                c.enabled = EditorGUILayout.Toggle("カラー有効", c.enabled);
+                EditorGUI.BeginChangeCheck();
+                using (new EditorGUI.DisabledScope(!c.enabled))
+                {
+                    c.exposure = EditorGUILayout.Slider("露出 (EV)", c.exposure, -3f, 3f);
+                    c.contrast = EditorGUILayout.Slider("コントラスト", c.contrast, -100f, 100f);
+                    c.saturation = EditorGUILayout.Slider("彩度", c.saturation, -100f, 100f);
+                    c.colorFilter = EditorGUILayout.ColorField("カラーフィルター", c.colorFilter);
+                    c.temperature = EditorGUILayout.Slider("色温度 (寒⇔暖)", c.temperature, -100f, 100f);
+                    c.tint = EditorGUILayout.Slider("ティント", c.tint, -100f, 100f);
+                    c.bloom = EditorGUILayout.Toggle("Bloom", c.bloom);
+                    using (new EditorGUI.DisabledScope(!c.bloom))
+                        c.bloomIntensity = EditorGUILayout.Slider("　Bloom 強度", c.bloomIntensity, 0f, 2f);
+                    c.vignette = EditorGUILayout.Toggle("Vignette", c.vignette);
+                    using (new EditorGUI.DisabledScope(!c.vignette))
+                        c.vignetteIntensity = EditorGUILayout.Slider("　Vignette 強度", c.vignetteIntensity, 0f, 1f);
+
+                    if (!styly)
+                    {
+                        _showAdvancedColor = EditorGUILayout.Foldout(_showAdvancedColor, "詳細設定", true);
+                        if (_showAdvancedColor)
+                        {
+                            EditorGUILayout.LabelField("Bloom", EditorStyles.miniBoldLabel);
+                            c.bloomThreshold = EditorGUILayout.FloatField("　Threshold", c.bloomThreshold);
+                            c.bloomScatter = EditorGUILayout.Slider("　Scatter (拡散)", c.bloomScatter, 0f, 1f);
+                            c.bloomTint = EditorGUILayout.ColorField("　Tint", c.bloomTint);
+                            EditorGUILayout.LabelField("Vignette", EditorStyles.miniBoldLabel);
+                            c.vignetteSmoothness = EditorGUILayout.Slider("　Smoothness", c.vignetteSmoothness, 0f, 1f);
+                            c.vignetteRoundness = EditorGUILayout.Slider("　Roundness", c.vignetteRoundness, 0f, 1f);
+                            c.vignetteColor = EditorGUILayout.ColorField("　色", c.vignetteColor);
+                            EditorGUILayout.LabelField("グレード", EditorStyles.miniBoldLabel);
+                            c.hueShift = EditorGUILayout.Slider("　Hue シフト", c.hueShift, -180f, 180f);
+                            c.tonemap = (TonemapMode)EditorGUILayout.EnumPopup("　Tonemapping", c.tonemap);
+                            c.lut = (Texture)EditorGUILayout.ObjectField("　LUT", c.lut, typeof(Texture), false);
+                            using (new EditorGUI.DisabledScope(c.lut == null))
+                                c.lutContribution = EditorGUILayout.Slider("　LUT 強度", c.lutContribution, 0f, 1f);
+                            BossHint("Tonemapping は SelfApp/HDR のみ。LUT は URP=常時 / PPv2=LDR(STYLY)のみ。DoF・Motion Blur・SSAO はモバイルXR方針で非対応。");
+                        }
+                    }
+                }
+                if (EditorGUI.EndChangeCheck())
+                {
+                    EditorUtility.SetDirty(look);
+                    if (styly) LookBakeOps.ApplyToLighting(look);          // live bake-into-lighting
+                    else adapter.Apply(new EditorLookScope(look));          // live grade
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (styly)
+                    {
+                        if (Button("ライティングに焼き込む", BossLookDevPalette.Generate))
+                            LookBakeOps.ApplyToLighting(look);
+                        if (Button("リセット", BossLookDevPalette.Danger, 22f, 80f))
+                            LookBakeOps.ResetLightingTint(look);
+                    }
+                    else
+                    {
+                        if (Button("カラーをセットアップ / 更新", BossLookDevPalette.Generate))
+                            adapter.Setup(new EditorLookScope(look));
+                        if (Button("外す", BossLookDevPalette.Danger, 22f, 64f))
+                            adapter.Remove(new EditorLookScope(look));
+                    }
+                }
+            }
+        }
+
+        // ---------------- Atmosphere ----------------
+
+        private void DrawAtmosphere()
+        {
+            using (Card("フォグ (空気感・奥行き)", BossLookDevPalette.Atmosphere))
+            {
+                BossHint("遠くを霞ませて奥行き・空気感を出す『霧』。VR 向け。AR / MR では通常オフにします。");
+                var a = look.atmosphere;
+                EditorGUI.BeginChangeCheck();
+                a.enabled = EditorGUILayout.Toggle("フォグ有効", a.enabled);
+                using (new EditorGUI.DisabledScope(!a.enabled))
+                {
+                    a.fogMode = (FogMode)EditorGUILayout.EnumPopup("モード", a.fogMode);
+                    a.fogColor = EditorGUILayout.ColorField("色", a.fogColor);
+                    if (a.fogMode == FogMode.Linear)
+                    {
+                        a.fogStartDistance = EditorGUILayout.FloatField("開始距離", a.fogStartDistance);
+                        a.fogEndDistance = EditorGUILayout.FloatField("終了距離", a.fogEndDistance);
+                    }
+                    else a.fogDensity = EditorGUILayout.Slider("濃度", a.fogDensity, 0f, 0.15f);
+                }
+                if (EditorGUI.EndChangeCheck())
+                {
+                    RenderSettings.fog = a.enabled;
+                    RenderSettings.fogMode = a.fogMode;
+                    RenderSettings.fogColor = a.fogColor;
+                    RenderSettings.fogDensity = a.fogDensity;
+                    RenderSettings.fogStartDistance = a.fogStartDistance;
+                    RenderSettings.fogEndDistance = a.fogEndDistance;
+                    EditorUtility.SetDirty(look);
+                }
+            }
+        }
+
+        // ---------------- VR↔MR state switching ----------------
+
+        private void DrawStates()
+        {
+            using (Card("VR↔MR 切り替え (State)", BossLookDevPalette.MR))
+            {
+                BossHint("体験中に VR↔MR を切り替える仕組み。2状態は同じベイクを共有し、skybox / フォグ / 環境光などの差分だけを切り替えます。");
+                var s = look.states;
+                EditorGUI.BeginChangeCheck();
+                s.enabled = EditorGUILayout.Toggle("State 切り替えを使う", s.enabled);
+                using (new EditorGUI.DisabledScope(!s.enabled))
+                {
+                    DrawStatePair("状態A", s.stateA);
+                    EditorGUILayout.Space(2);
+                    DrawStatePair("状態B", s.stateB);
+
+                    EditorGUILayout.Space(2);
+                    EditorGUILayout.LabelField("トランジション (SelfApp)", EditorStyles.boldLabel);
+                    s.transition.smooth = EditorGUILayout.Toggle("スムーズ切替", s.transition.smooth);
+                    using (new EditorGUI.DisabledScope(!s.transition.smooth))
+                    {
+                        s.transition.durationSeconds = EditorGUILayout.Slider("時間 (秒)", s.transition.durationSeconds, 0f, 5f);
+                        s.transition.curve = EditorGUILayout.CurveField("カーブ", s.transition.curve);
+                    }
+                }
+                if (EditorGUI.EndChangeCheck()) EditorUtility.SetDirty(look);
+
+                using (new EditorGUI.DisabledScope(!s.enabled))
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (Button($"State リグを生成 (Target={look.target})", BossLookDevPalette.Generate))
+                        {
+                            StateRigEmitter.Emit(look);
+                            ShowNotification(new GUIContent("State リグを生成しました"));
+                        }
+                        if (Button("リグ削除", BossLookDevPalette.Danger, 22f, 80f))
+                            StateRigEmitter.DeleteRig(look);
+                    }
+                    if (Button("📄 ハンドオフ手順書を生成 (日本語)", BossLookDevPalette.Auto))
+                    {
+                        var path = HandoffDocGenerator.Generate(look);
+                        var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
+                        if (asset != null) EditorGUIUtility.PingObject(asset);
+                        ShowNotification(new GUIContent("手順書を生成しました"));
+                    }
+                    if (look.target == LookTarget.STYLY)
+                        EditorGUILayout.HelpBox("STYLY: 宣言的リグを生成 (BossLookDevState なし)。PlayMaker の Activate Game Object でトグル。詳細は手順書。", MessageType.Info);
+                    else
+                        EditorGUILayout.HelpBox("SelfApp: 各 State に BossLookDevState が付き、SetActive で切替＋スムーズ適用。詳細は手順書。", MessageType.Info);
+                }
+            }
+        }
+
+        private void DrawStatePair(string label, ContextStatePair pair)
+        {
+            EditorGUILayout.LabelField($"{label}: {pair.stateName} ({pair.context})", EditorStyles.boldLabel);
+            pair.stateName = EditorGUILayout.TextField("名前", pair.stateName);
+            pair.context = (LookContext)EditorGUILayout.EnumPopup("コンテキスト", pair.context);
+            var d = pair.delta;
+            d.skyboxVisible = EditorGUILayout.Toggle("スカイボックス表示 (VR) / 透過 (MR)", d.skyboxVisible);
+            d.fogEnabled = EditorGUILayout.Toggle("フォグ", d.fogEnabled);
+            d.ambientIntensity = EditorGUILayout.Slider("環境光強度", d.ambientIntensity, 0f, 8f);
+            d.reflectionIntensity = EditorGUILayout.Slider("リフレクション強度", d.reflectionIntensity, 0f, 1f);
+        }
+
+        // ---------------- Ground shadow (AR only) ----------------
+
+        private void DrawGroundShadow()
+        {
+            using (Card("AR グラウンドシャドウ", BossLookDevPalette.AR))
+            {
+                var g = look.groundShadow;
+                EditorGUILayout.HelpBox("影だけを受ける透明な床を被写体の足元に生成し、AR で『浮いて見える』のを防ぎます。選択中オブジェクトを被写体として使います。", MessageType.None);
+                EditorGUI.BeginChangeCheck();
+                g.opacity = EditorGUILayout.Slider("影の濃さ", g.opacity, 0f, 1f);
+                if (EditorGUI.EndChangeCheck()) GroundShadowOps.ApplyOpacity(look);
+                g.sizeMultiplier = EditorGUILayout.Slider("サイズ倍率", g.sizeMultiplier, 1f, 6f);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (Button("生成 / 更新", BossLookDevPalette.Generate)) GroundShadowOps.CreateOrUpdate(look);
+                    if (Button("除去", BossLookDevPalette.Danger, 22f, 64f)) GroundShadowOps.Remove(look);
+                }
+            }
+        }
+
+        // ---------------- Lookbook (blend + snapshot) ----------------
+
+        private void DrawLookbook()
+        {
+            using (Card("ルックの比較・ブレンド", BossLookDevPalette.Overrides))
+            {
+                BossHint("複数の Look を混ぜたり (A↔B)、今の状態を保存して変更前後を見比べる (before / after) ためのツールです。");
+                EditorGUILayout.LabelField("2つの Look を混ぜる (A → B)", EditorStyles.boldLabel);
+                _blendA = (LookDefinition)EditorGUILayout.ObjectField("A", _blendA, typeof(LookDefinition), false);
+                _blendB = (LookDefinition)EditorGUILayout.ObjectField("B", _blendB, typeof(LookDefinition), false);
+                _blendT = EditorGUILayout.Slider("ブレンド (A→B)", _blendT, 0f, 1f);
+                using (new EditorGUI.DisabledScope(_blendA == null || _blendB == null))
+                    if (Button("ブレンドをこの Look に適用", BossLookDevPalette.Auto))
+                    {
+                        LookBlendOps.BlendInto(look, _blendA, _blendB, _blendT);
+                        var ad = AdapterRegistry.GetActiveColorAdapter();
+                        ad?.Apply(new EditorLookScope(look));
+                        LightingBakeOps.ApplyEnvironmentLive(look);
+                    }
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("スナップショット (before / after)", EditorStyles.boldLabel);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (Button("📸 スナップショット保存", BossLookDevPalette.Generate))
+                        _snapshot = LookBlendOps.Capture(look);
+                    using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_snapshot)))
+                        if (Button("↩ 戻す (after→before)", BossLookDevPalette.Auto))
+                        {
+                            LookBlendOps.Restore(look, _snapshot);
+                            var ad = AdapterRegistry.GetActiveColorAdapter();
+                            ad?.Apply(new EditorLookScope(look));
+                            LightingBakeOps.ApplyEnvironmentLive(look);
+                        }
+                }
+                BossHint(string.IsNullOrEmpty(_snapshot) ? "現在の状態を保存して、変更後に見比べられます。" : "スナップショットあり。『戻す』で保存時点に戻ります。");
+            }
+        }
+
+        // ---------------- Validate ----------------
+
+        private void DrawValidate()
+        {
+            using (Card("事故チェック (検証)", BossLookDevPalette.Hold))
+            {
+                BossHint("実機で事故りやすい設定を自動チェック: 未ベイク / 純白アルベド / UV2 欠落 / 色空間 / カメラHDR / 色温度 / プローブ欠落 など。納品前に自分で気付くため。");
+                if (Button("🔍 チェックを実行", BossLookDevPalette.Auto, 26f))
+                    _issues = LookValidator.Run(look);
+
+                if (_issues == null) return;
+                foreach (var issue in _issues)
+                {
+                    var mt = issue.severity == LookIssueSeverity.Error ? MessageType.Error
+                        : issue.severity == LookIssueSeverity.Warning ? MessageType.Warning : MessageType.Info;
+                    EditorGUILayout.HelpBox(issue.message, mt);
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (issue.targets != null && issue.targets.Count > 0 &&
+                            GUILayout.Button($"対象を選択 ({issue.targets.Count})", GUILayout.Width(150)))
+                            Selection.objects = issue.targets.ToArray();
+                        if (issue.fix != null && Button(issue.fixLabel, BossLookDevPalette.Generate))
+                        {
+                            issue.fix();
+                            _issues = LookValidator.Run(look);
+                            GUIUtility.ExitGUI();
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------------- Create ----------------
+
+        private void CreateNewLook()
+        {
+            var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            string defaultName = string.IsNullOrEmpty(sceneName) ? "NewLook" : sceneName + "_Look";
+            string path = EditorUtility.SaveFilePanelInProject(
+                "新規 Look を作成", defaultName, "asset", "Look Definition の保存先を選んでください");
+            if (string.IsNullOrEmpty(path)) return;
+
+            var created = ScriptableObject.CreateInstance<LookDefinition>();
+            created.lookName = System.IO.Path.GetFileNameWithoutExtension(path);
+            created.targetPipeline = RenderPipelineDetector.Active; // seed to current pipeline
+            AssetDatabase.CreateAsset(created, path);
+            AssetDatabase.SaveAssets();
+
+            look = created;
+            _issues = null;
+            Selection.activeObject = created;
+            EditorGUIUtility.PingObject(created);
+        }
+
+        // ---------------- UI helpers ----------------
+
+        private static IDisposable Card(string title, Color accent)
+        {
+            var scope = new EditorGUILayout.VerticalScope(EditorStyles.helpBox);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var bar = GUILayoutUtility.GetRect(3f, 16f, GUILayout.Width(3f));
+                EditorGUI.DrawRect(bar, accent);
+                GUILayout.Space(4f);
+                EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+            }
+            GUILayout.Space(3f);
+            return scope;
+        }
+
+        private static bool Button(string label, Color tint, float height = 22f, float width = 0f)
+        {
+            var prev = GUI.backgroundColor;
+            GUI.backgroundColor = tint;
+            bool pressed = width > 0f
+                ? GUILayout.Button(label, GUILayout.Height(height), GUILayout.Width(width))
+                : GUILayout.Button(label, GUILayout.Height(height));
+            GUI.backgroundColor = prev;
+            return pressed;
+        }
+
+        private static Enum ColoredEnumPopup(string label, Enum selected, Color accent)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var bar = GUILayoutUtility.GetRect(3f, 16f, GUILayout.Width(3f));
+                EditorGUI.DrawRect(bar, accent);
+                GUILayout.Space(4f);
+                var prev = GUI.backgroundColor;
+                GUI.backgroundColor = accent;
+                var result = EditorGUILayout.EnumPopup(label, selected);
+                GUI.backgroundColor = prev;
+                return result;
+            }
+        }
+
+        private static void ColorChip(string label, string value, Color accent)
+        {
+            using (new EditorGUILayout.HorizontalScope(GUILayout.Width(150)))
+            {
+                var bar = GUILayoutUtility.GetRect(3f, 14f, GUILayout.Width(3f));
+                EditorGUI.DrawRect(bar, accent);
+                GUILayout.Space(3f);
+                var prev = GUI.color; GUI.color = accent;
+                EditorGUILayout.LabelField($"{label}: {value}", EditorStyles.miniBoldLabel);
+                GUI.color = prev;
+            }
+        }
+
+        private static void BossHint(string text)
+        {
+            var prev = GUI.color; GUI.color = new Color(1f, 1f, 1f, 0.6f);
+            EditorGUILayout.LabelField(text, EditorStyles.wordWrappedMiniLabel);
+            GUI.color = prev;
+        }
+    }
+}

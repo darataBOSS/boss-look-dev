@@ -1,0 +1,25 @@
+{
+  "name": "com.daratabos.boss-look-dev",
+  "version": "0.6.0",
+  "displayName": "BOSS Look Dev",
+  "description": "Lighting-first look authoring for AR / VR / MR on Built-in RP and URP. Full-bake realism, pipeline adapters, target emitters (SelfApp / STYLY), and runtime VR<->MR state switching. Targets Pico 4 Ultra (VR/MR, URP) and STYLY mobile AR (Built-in).",
+  "unity": "2022.3",
+  "unityRelease": "24f1",
+  "dependencies": {},
+  "keywords": [
+    "lighting",
+    "look-dev",
+    "bake",
+    "hdri",
+    "ar",
+    "vr",
+    "mr",
+    "urp",
+    "styly",
+    "pico",
+    "quest"
+  ],
+  "author": {
+    "name": "darata.BOSS"
+  }
+}

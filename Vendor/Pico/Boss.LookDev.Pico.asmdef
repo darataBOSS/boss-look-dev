@@ -1,0 +1,23 @@
+{
+    "name": "Boss.LookDev.Pico",
+    "rootNamespace": "Boss.LookDev.Pico",
+    "references": [
+        "Boss.LookDev.Core",
+        "Boss.LookDev.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.picoxr",
+            "expression": "1.0.0",
+            "define": "BOSS_LOOK_DEV_HAS_PICO"
+        }
+    ],
+    "noEngineReferences": false
+}

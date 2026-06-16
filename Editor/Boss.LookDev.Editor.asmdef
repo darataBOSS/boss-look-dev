@@ -1,0 +1,40 @@
+{
+    "name": "Boss.LookDev.Editor",
+    "rootNamespace": "Boss.LookDev.Editor",
+    "references": [
+        "Boss.LookDev.Core",
+        "Boss.LookDev.Runtime",
+        "Boss.LookDev.BuiltIn",
+        "Boss.LookDev.URP",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.Postprocessing.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.postprocessing",
+            "expression": "3.0.0",
+            "define": "BOSS_LOOK_DEV_HAS_PPV2"
+        },
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "10.0.0",
+            "define": "BOSS_LOOK_DEV_HAS_URP"
+        },
+        {
+            "name": "com.unity.render-pipelines.core",
+            "expression": "10.0.0",
+            "define": "BOSS_LOOK_DEV_HAS_SRPCORE"
+        }
+    ],
+    "noEngineReferences": false
+}

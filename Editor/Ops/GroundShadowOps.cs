@@ -1,0 +1,191 @@
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+namespace Boss.LookDev.Editor.Ops
+{
+    /// <summary>
+    /// (D / AR module) Ground shadow catcher (spec inventory D1, hold (d)):
+    /// a transparent plane that receives only shadows so AR content doesn't float.
+    /// AR context only. The shader is written into the look's asset folder per
+    /// active pipeline (the URP variant pulls URP shader-library includes that
+    /// must not live in a Built-in-only import). Ported from legacy GroundShadowOps.
+    /// </summary>
+    public static class GroundShadowOps
+    {
+        private const string ShadowColorProp = "_ShadowColor";
+        public static string PlaneName(LookDefinition look) => $"{look.lookName} Ground Shadow";
+
+        public static void CreateOrUpdate(LookDefinition look)
+        {
+            if (look == null) return;
+            var shader = EnsureShaderAsset(look);
+            if (shader == null) { Debug.LogError("[BOSS Look Dev] シャドウキャッチャーシェーダ生成失敗。"); return; }
+
+            string folder = SceneBindingOps.AssetFolder(look);
+            string matPath = $"{folder}/{look.lookName}_GroundShadow.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (mat == null) { mat = new Material(shader); AssetDatabase.CreateAsset(mat, matPath); }
+            else if (mat.shader != shader) mat.shader = shader;
+            mat.SetColor(ShadowColorProp, new Color(0f, 0f, 0f, look.groundShadow.opacity));
+            EditorUtility.SetDirty(mat);
+
+            var plane = GameObject.Find(PlaneName(look));
+            if (plane == null)
+            {
+                plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                plane.name = PlaneName(look);
+                Undo.RegisterCreatedObjectUndo(plane, "Create Ground Shadow");
+                var col = plane.GetComponent<Collider>();
+                if (col != null) Object.DestroyImmediate(col);
+            }
+
+            ComputeSubject(out Vector3 position, out float footprint);
+            Undo.RecordObject(plane.transform, "Place Ground Shadow");
+            plane.transform.position = position;
+            float scale = footprint * Mathf.Max(1f, look.groundShadow.sizeMultiplier) / 10f; // Plane is 10u
+            plane.transform.localScale = new Vector3(scale, 1f, scale);
+
+            var mr = plane.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.receiveShadows = true;
+            GameObjectUtility.SetStaticEditorFlags(plane, 0); // runtime compositing helper, keep out of bake
+
+            SceneBindingOps.Parent(plane, look);
+            EditorUtility.SetDirty(look);
+        }
+
+        public static void ApplyOpacity(LookDefinition look)
+        {
+            string folder = SceneBindingOps.AssetFolder(look);
+            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{folder}/{look.lookName}_GroundShadow.mat");
+            if (mat == null) return;
+            mat.SetColor(ShadowColorProp, new Color(0f, 0f, 0f, look.groundShadow.opacity));
+            EditorUtility.SetDirty(mat);
+        }
+
+        public static void Remove(LookDefinition look)
+        {
+            var plane = GameObject.Find(PlaneName(look));
+            if (plane != null) Undo.DestroyObjectImmediate(plane);
+        }
+
+        private static void ComputeSubject(out Vector3 position, out float footprint)
+        {
+            var sel = Selection.activeGameObject;
+            Bounds? b = null;
+            if (sel != null)
+                foreach (var r in sel.GetComponentsInChildren<Renderer>())
+                {
+                    if (r == null) continue;
+                    if (b == null) b = r.bounds; else { var t = b.Value; t.Encapsulate(r.bounds); b = t; }
+                }
+            if (b == null && QuickStartOps.TryComputeSceneBounds(out var sb)) b = sb;
+
+            if (b.HasValue)
+            {
+                var v = b.Value;
+                position = new Vector3(v.center.x, v.min.y + 0.001f, v.center.z);
+                footprint = Mathf.Max(v.size.x, v.size.z, 0.1f);
+            }
+            else { position = Vector3.zero; footprint = 1f; }
+        }
+
+        private static Shader EnsureShaderAsset(LookDefinition look)
+        {
+            string folder = SceneBindingOps.AssetFolder(look);
+            string shaderPath = $"{folder}/{look.lookName}_ShadowCatcher.shader";
+            string source = RenderPipelineDetector.Active == LookPipeline.URP ? UrpShaderSource : BuiltinShaderSource;
+            if (!File.Exists(shaderPath) || File.ReadAllText(shaderPath) != source)
+            {
+                File.WriteAllText(shaderPath, source);
+                AssetDatabase.ImportAsset(shaderPath);
+            }
+            return AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
+        }
+
+        private const string BuiltinShaderSource = @"// Auto-generated by BOSS Look Dev (Built-in RP variant).
+Shader ""BOSS/ShadowCatcher""
+{
+    Properties { _ShadowColor (""Shadow Color"", Color) = (0, 0, 0, 0.6) }
+    SubShader
+    {
+        Tags { ""Queue"" = ""Transparent-1"" ""RenderType"" = ""Transparent"" ""IgnoreProjector"" = ""True"" }
+        Pass
+        {
+            Tags { ""LightMode"" = ""ForwardBase"" }
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_fwdbase
+            #include ""UnityCG.cginc""
+            #include ""AutoLight.cginc""
+            struct v2f { float4 pos : SV_POSITION; SHADOW_COORDS(0) };
+            fixed4 _ShadowColor;
+            v2f vert(appdata_base v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); TRANSFER_SHADOW(o); return o; }
+            fixed4 frag(v2f i) : SV_Target { fixed shadow = SHADOW_ATTENUATION(i); return fixed4(_ShadowColor.rgb, (1.0 - shadow) * _ShadowColor.a); }
+            ENDCG
+        }
+    }
+    Fallback Off
+}
+";
+
+        private const string UrpShaderSource = @"// Auto-generated by BOSS Look Dev (URP variant).
+Shader ""BOSS/ShadowCatcher""
+{
+    Properties { _ShadowColor (""Shadow Color"", Color) = (0, 0, 0, 0.6) }
+    SubShader
+    {
+        Tags { ""RenderType"" = ""Transparent"" ""Queue"" = ""Transparent-1"" ""RenderPipeline"" = ""UniversalPipeline"" }
+        Pass
+        {
+            Name ""GroundShadow""
+            Tags { ""LightMode"" = ""UniversalForward"" }
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl""
+            #include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl""
+            struct Attributes { float4 positionOS : POSITION; };
+            struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; };
+            half4 _ShadowColor;
+            Varyings vert(Attributes IN)
+            {
+                Varyings OUT;
+                OUT.positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionCS = TransformWorldToHClip(OUT.positionWS);
+                return OUT;
+            }
+            half4 frag(Varyings IN) : SV_Target
+            {
+                float4 shadowCoord = TransformWorldToShadowCoord(IN.positionWS);
+                Light mainLight = GetMainLight(shadowCoord);
+                half shadow = mainLight.shadowAttenuation;
+                #if defined(_ADDITIONAL_LIGHTS) && defined(_ADDITIONAL_LIGHT_SHADOWS)
+                uint lightCount = GetAdditionalLightsCount();
+                for (uint li = 0u; li < lightCount; li++)
+                {
+                    Light l = GetAdditionalLight(li, IN.positionWS, half4(1, 1, 1, 1));
+                    shadow = min(shadow, l.shadowAttenuation);
+                }
+                #endif
+                return half4(_ShadowColor.rgb, (1.0 - shadow) * _ShadowColor.a);
+            }
+            ENDHLSL
+        }
+    }
+    Fallback Off
+}
+";
+    }
+}
