@@ -48,7 +48,7 @@ namespace Boss.LookDev.Editor
         private static LookPreset DeepSea() => new LookPreset
         {
             name = "深海（神秘・暗め）",
-            description = "光は上からわずか、濃い青、強いフォグ。深く神秘的な水中。",
+            description = "光は上からわずか、濃い青、強いフォグ。深く神秘的な水中。背景(スカイボックス)はそのまま維持 — 暗い水中背景にしたい場合は『3. 背景・環境光』を ON に。",
             apply = look =>
             {
                 var r = look.lighting.rig;
@@ -62,7 +62,7 @@ namespace Boss.LookDev.Editor
                 var a = look.atmosphere;
                 a.enabled = true; a.fogMode = FogMode.ExponentialSquared; a.fogColor = new Color(0.02f, 0.10f, 0.14f); a.fogDensity = 0.10f;
                 var b = look.background;
-                b.enabled = true; b.mode = BackgroundMode.Gradient;
+                b.enabled = false; b.mode = BackgroundMode.Gradient; // keep user skybox; opt-in via card 3
                 b.gradientTop = new Color(0.06f, 0.22f, 0.30f); b.gradientBottom = new Color(0.005f, 0.03f, 0.06f); b.gradientExponent = 1.3f;
                 b.ambientMode = LookAmbientMode.Gradient;
                 b.ambientSky = new Color(0.08f, 0.20f, 0.26f); b.ambientEquator = new Color(0.04f, 0.12f, 0.16f); b.ambientGround = new Color(0.01f, 0.04f, 0.06f);
@@ -73,7 +73,7 @@ namespace Boss.LookDev.Editor
         private static LookPreset BrightWater() => new LookPreset
         {
             name = "海中（明るい・透明感）",
-            description = "光量多め、フォグ薄め、シアン寄りで抜け感のある綺麗な海中。",
+            description = "光量多め、フォグ薄め、シアン寄りで抜け感のある綺麗な海中。背景(スカイボックス)はそのまま維持 — 水中背景にしたい場合は『3. 背景・環境光』を ON に。",
             apply = look =>
             {
                 var r = look.lighting.rig;
@@ -87,7 +87,7 @@ namespace Boss.LookDev.Editor
                 var a = look.atmosphere;
                 a.enabled = true; a.fogMode = FogMode.ExponentialSquared; a.fogColor = new Color(0.06f, 0.22f, 0.26f); a.fogDensity = 0.06f;
                 var b = look.background;
-                b.enabled = true; b.mode = BackgroundMode.Gradient;
+                b.enabled = false; b.mode = BackgroundMode.Gradient; // keep user skybox; opt-in via card 3
                 b.gradientTop = new Color(0.12f, 0.35f, 0.42f); b.gradientBottom = new Color(0.01f, 0.06f, 0.10f); b.gradientExponent = 1.2f;
                 b.ambientMode = LookAmbientMode.Gradient;
                 b.ambientSky = new Color(0.14f, 0.30f, 0.36f); b.ambientEquator = new Color(0.08f, 0.20f, 0.25f); b.ambientGround = new Color(0.02f, 0.07f, 0.10f);
