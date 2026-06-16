@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.3] - 2026-06-16
+
+### Fixed
+- **コースティクスの設定経路を復活**: 0.8.2 で通常UIから完全に消してしまい設定できなくなっていた問題を修正。リグ欄に「🌊 水中表現 (コースティクス)」トグルを追加（既定 OFF＝通常はクリーン）。ON で Cookie 欄が出る。**海プリセット（深海 / 海中）を選ぶと自動で ON＋展開**され、設定方法が分かるように（非海プリセットは OFF に戻す）。`LightRigConfig.useCaustics` 追加、リグ適用は useCaustics 連動。
+
 ## [0.8.2] - 2026-06-16
 
 ### Changed — UX（フィードバック反映）

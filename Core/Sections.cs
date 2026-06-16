@@ -42,8 +42,9 @@ namespace Boss.LookDev
         public float gridKelvin = 4500f;
         [Range(1f, 179f)] public float gridSpotAngle = 100f;
 
-        [Header("Caustics (underwater): assigns a cookie to the rig's main light")]
-        [Tooltip("A looping caustics texture. Static assignment is done by the tool; animating the scroll is your shader/script task (see the enhancement checklist).")]
+        [Header("Caustics (underwater, optional): assigns a cookie to the rig's main light")]
+        [Tooltip("Optional underwater caustics. Ocean presets turn this on. The tool statically assigns the cookie; animating the scroll is a project-side shader/script task (see the enhancement checklist).")]
+        public bool useCaustics = false;
         public Texture causticsCookie;
         public float causticsCookieSize = 30f;
     }

@@ -106,8 +106,8 @@ namespace Boss.LookDev.Editor.Ops
         private static void ApplyCausticsCookie(Light light, LightRigConfig rig)
         {
             if (light == null) return;
-            light.cookie = rig.causticsCookie;
-            if (light.type == LightType.Directional && rig.causticsCookie != null)
+            light.cookie = rig.useCaustics ? rig.causticsCookie : null;
+            if (light.type == LightType.Directional && rig.useCaustics && rig.causticsCookie != null)
                 light.cookieSize = Mathf.Max(0.01f, rig.causticsCookieSize);
         }
 

@@ -41,6 +41,7 @@ namespace Boss.LookDev.Editor
                 c.vignette = true; c.vignetteIntensity = 0.25f; c.lut = null;
                 look.atmosphere.enabled = false;
                 look.background.enabled = false;
+                look.lighting.rig.useCaustics = false;
             },
         };
 
@@ -53,6 +54,7 @@ namespace Boss.LookDev.Editor
                 var r = look.lighting.rig;
                 r.rigType = RigType.Sun; r.sunElevation = 75; r.sunAzimuth = 20;
                 r.sunIntensity = 1.0f; r.sunKelvin = 11000; r.skyFill = true; r.skyFillRatio = 3f; r.skyFillKelvin = 13000;
+                r.useCaustics = true; // underwater — reveal caustics controls
                 var c = look.color;
                 c.enabled = true; c.exposure = -0.2f; c.contrast = 14; c.saturation = 4;
                 c.temperature = -28; c.tint = -6; c.colorFilter = new Color(0.70f, 0.92f, 1f);
@@ -77,6 +79,7 @@ namespace Boss.LookDev.Editor
                 var r = look.lighting.rig;
                 r.rigType = RigType.Sun; r.sunElevation = 70; r.sunAzimuth = 20;
                 r.sunIntensity = 1.5f; r.sunKelvin = 8800; r.skyFill = true; r.skyFillRatio = 2f; r.skyFillKelvin = 12000;
+                r.useCaustics = true; // underwater — reveal caustics controls
                 var c = look.color;
                 c.enabled = true; c.exposure = 0.05f; c.contrast = 10; c.saturation = 10;
                 c.temperature = -22; c.tint = -5; c.colorFilter = new Color(0.78f, 0.95f, 1f);
@@ -107,6 +110,7 @@ namespace Boss.LookDev.Editor
                 var a = look.atmosphere;
                 a.enabled = true; a.fogMode = FogMode.ExponentialSquared; a.fogColor = new Color(0.5f, 0.6f, 0.7f); a.fogDensity = 0.02f;
                 look.background.enabled = false; // keep skybox
+                look.lighting.rig.useCaustics = false;
             },
         };
     }

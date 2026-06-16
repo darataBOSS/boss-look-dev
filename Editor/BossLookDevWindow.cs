@@ -63,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.8.2 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.8.3 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -310,6 +310,18 @@ namespace Boss.LookDev.Editor
                         rig.gridSpotAngle = EditorGUILayout.Slider("Spot 角度", rig.gridSpotAngle, 1f, 179f);
                     EditorGUILayout.LabelField($"合計 {rig.gridRows * rig.gridColumns} 灯", EditorStyles.miniLabel);
                     break;
+            }
+
+            if (rig.rigType != RigType.CeilingGrid)
+            {
+                rig.useCaustics = EditorGUILayout.Toggle("🌊 水中表現 (コースティクス)", rig.useCaustics);
+                if (rig.useCaustics)
+                {
+                    rig.causticsCookie = (Texture)EditorGUILayout.ObjectField("　Cookie", rig.causticsCookie, typeof(Texture), false);
+                    using (new EditorGUI.DisabledScope(rig.causticsCookie == null))
+                        rig.causticsCookieSize = EditorGUILayout.FloatField("　Cookie サイズ", rig.causticsCookieSize);
+                    BossHint("主ライト（太陽/キー）に caustics の cookie を静的に割り当てます。テクスチャは自分で用意。揺らぎのアニメ（スクロール）はプロジェクト側のシェーダ/スクリプト — 「8. 事故チェック・強化チェックリスト」で生成されるリストを参照。");
+                }
             }
 
             using (new EditorGUILayout.HorizontalScope())
