@@ -45,6 +45,7 @@ namespace Boss.LookDev.Editor
             if (look == null) return;
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
+            DrawPresets();
             DrawQuickStart();
             DrawLighting();
             DrawBackground();
@@ -62,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.7.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.8.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -114,11 +115,53 @@ namespace Boss.LookDev.Editor
             EditorGUILayout.Space(4);
         }
 
+        // ---------------- Presets (starting points) ----------------
+
+        private void DrawPresets()
+        {
+            using (Card("★ プリセット（出発点を選ぶ）", BossLookDevPalette.Finalize))
+            {
+                BossHint("ルックの出発点をワンクリック適用（色・フォグ・背景・ライト調を上書き。HDRI / ベイク / 生成物は変更しません）。深海コンテンツ向けの『海中』系もここ。適用後、下の番号順で微調整。");
+                foreach (var p in LookPresetLibrary.BuiltIn)
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (Button(p.name, BossLookDevPalette.Auto, 24f, 190f))
+                        {
+                            Undo.RecordObject(look, "Apply Preset");
+                            p.apply(look);
+                            EditorUtility.SetDirty(look);
+                            ApplyLookLive();
+                            ShowNotification(new GUIContent($"「{p.name}」を適用"));
+                        }
+                        BossHint(p.description);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Re-applies the look's feel to the scene live (background/ambient,
+        /// fog, color, rig) — used after applying a preset.</summary>
+        private void ApplyLookLive()
+        {
+            if (look == null) return;
+            if (look.background.enabled) BackgroundOps.Apply(look);
+            var a = look.atmosphere;
+            RenderSettings.fog = a.enabled; RenderSettings.fogMode = a.fogMode;
+            RenderSettings.fogColor = a.fogColor; RenderSettings.fogDensity = a.fogDensity;
+            RenderSettings.fogStartDistance = a.fogStartDistance; RenderSettings.fogEndDistance = a.fogEndDistance;
+            if (look.target == LookTarget.STYLY) LookBakeOps.ApplyToLighting(look);
+            else { var ca = AdapterRegistry.GetActiveColorAdapter(); if (ca != null) ca.Apply(new EditorLookScope(look)); }
+            if (GameObject.Find(SceneBindingOps.RigRootName(look)) != null)
+                LightRigAuthoring.CreateOrUpdateRig(look, QuickStartOps.ResolveSubject());
+            LightingBakeOps.ApplyEnvironmentLive(look);
+        }
+
         // ---------------- Quick start ----------------
 
         private void DrawQuickStart()
         {
-            using (Card("⚡ クイックスタート (良い既定値)", BossLookDevPalette.Generate))
+            using (Card("1. ⚡ クイックスタート（おすすめ最初）", BossLookDevPalette.Generate))
             {
                 EditorGUILayout.HelpBox("HDRI を指定して1ボタン。スカイボックス〜ライト〜プローブ〜カラーまで一括し、ベイク直前まで持っていきます。", MessageType.None);
                 look.lighting.hdri = (Texture)EditorGUILayout.ObjectField("HDRI", look.lighting.hdri, typeof(Texture), false);
@@ -144,7 +187,7 @@ namespace Boss.LookDev.Editor
 
         private void DrawLighting()
         {
-            using (Card("ライティング (土台)", BossLookDevPalette.Lighting))
+            using (Card("2. ライティング（土台）", BossLookDevPalette.Lighting))
             {
                 BossHint("リアルさの土台。HDRI で環境光 → ベイク → プローブ/リフレクション → ライトリグ。ここを固めてから色を乗せます。");
                 var l = look.lighting;
@@ -310,10 +353,32 @@ namespace Boss.LookDev.Editor
 
         private void DrawBackground()
         {
-            using (Card("背景・環境光", BossLookDevPalette.ForContext(look.targetContext)))
+            using (Card("3. 背景・環境光", BossLookDevPalette.ForContext(look.targetContext)))
             {
                 BossHint("ベイク後の『見せ方』。VR=スカイボックス、深海等のスタイライズVR=単色/グラデ、AR=透過(単色のα=0)。Look に保存され再現可能。");
                 var bg = look.background;
+
+                // Quick switches (the common cases — incl. AR skybox-off)
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (Button("VR: スカイボックス表示", BossLookDevPalette.VR))
+                    {
+                        bg.enabled = true; bg.mode = BackgroundMode.Skybox;
+                        EditorUtility.SetDirty(look); BackgroundOps.Apply(look);
+                    }
+                    if (Button("AR: 背景を透過", BossLookDevPalette.AR))
+                    {
+                        bg.enabled = true; bg.mode = BackgroundMode.SolidColor; bg.solidColor = new Color(0f, 0f, 0f, 0f);
+                        EditorUtility.SetDirty(look); BackgroundOps.Apply(look);
+                    }
+                }
+                string status = !bg.enabled ? "管理OFF（シーン既定のまま）"
+                    : bg.mode == BackgroundMode.Skybox ? "スカイボックス表示 (VR)"
+                    : bg.mode == BackgroundMode.SolidColor ? (bg.solidColor.a < 0.01f ? "透過 (AR)" : "単色")
+                    : "縦グラデ";
+                EditorGUILayout.LabelField("現在: " + status, EditorStyles.miniBoldLabel);
+                EditorGUILayout.Space(2);
+
                 EditorGUI.BeginChangeCheck();
                 bg.enabled = EditorGUILayout.Toggle("ツールで背景・環境光を管理", bg.enabled);
                 using (new EditorGUI.DisabledScope(!bg.enabled))
@@ -364,7 +429,7 @@ namespace Boss.LookDev.Editor
 
         private void DrawColor()
         {
-            using (Card("カラー", BossLookDevPalette.Color_))
+            using (Card("4. カラー", BossLookDevPalette.Color_))
             {
                 BossHint("ライティングの上に乗せる色味の最終調整 (露出・コントラスト・彩度・色温度・Bloom・Vignette)。");
                 bool styly = look.target == LookTarget.STYLY;
@@ -459,7 +524,7 @@ namespace Boss.LookDev.Editor
 
         private void DrawAtmosphere()
         {
-            using (Card("フォグ (空気感・奥行き)", BossLookDevPalette.Atmosphere))
+            using (Card("5. フォグ（空気感・奥行き）", BossLookDevPalette.Atmosphere))
             {
                 BossHint("遠くを霞ませて奥行き・空気感を出す『霧』。VR 向け。AR / MR では通常オフにします。");
                 var a = look.atmosphere;
@@ -493,7 +558,7 @@ namespace Boss.LookDev.Editor
 
         private void DrawStates()
         {
-            using (Card("VR↔MR 切り替え (State)", BossLookDevPalette.MR))
+            using (Card("7. VR↔MR 切り替え (State)", BossLookDevPalette.MR))
             {
                 BossHint("体験中に VR↔MR を切り替える仕組み。2状態は同じベイクを共有し、skybox / フォグ / 環境光などの差分だけを切り替えます。");
                 var s = look.states;
@@ -559,7 +624,7 @@ namespace Boss.LookDev.Editor
 
         private void DrawGroundShadow()
         {
-            using (Card("AR グラウンドシャドウ", BossLookDevPalette.AR))
+            using (Card("6. AR グラウンドシャドウ", BossLookDevPalette.AR))
             {
                 var g = look.groundShadow;
                 EditorGUILayout.HelpBox("影だけを受ける透明な床を被写体の足元に生成し、AR で『浮いて見える』のを防ぎます。選択中オブジェクトを被写体として使います。", MessageType.None);
@@ -618,7 +683,7 @@ namespace Boss.LookDev.Editor
 
         private void DrawValidate()
         {
-            using (Card("事故チェック (検証)", BossLookDevPalette.Hold))
+            using (Card("8. 事故チェック・強化チェックリスト", BossLookDevPalette.Hold))
             {
                 BossHint("実機で事故りやすい設定を自動チェック: 未ベイク / 純白アルベド / UV2 欠落 / 色空間 / カメラHDR / 色温度 / プローブ欠落 など。納品前に自分で気付くため。");
                 if (Button("🔍 チェックを実行", BossLookDevPalette.Auto, 26f))
