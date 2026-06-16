@@ -39,7 +39,7 @@ URP / Post Processing Stack v2 は**ハード依存にしていません**。ホ
 - **背景（カメラ）**: VR=スカイボックス表示 / AR=透過 を切替（ベイクは保持）
 - **カラー**: グレード・Bloom・Vignette ＋ 詳細設定（threshold/scatter/tint・hue・Tonemapping・LUT 等）。Built-in=PPv2 / URP=Volume を自動切替
 - **フォグ（空気感）** / **AR グラウンドシャドウ**（AR 時）
-- **VR↔MR 切り替え（State）**: 共有ベイクのまま 2 状態をトグル。SelfApp=`BossLookDevState`＋スムーズ transition、STYLY=宣言的リグ。**日本語ハンドオフ手順書を自動生成**
+- **VR↔MR 切り替え（State）**: 共有ベイクのまま 2 状態（VR_State / MR_State）を生成し、GameObject のアクティブ切替でルックが切り替わる。SelfApp=`BossLookDevState`＋スムーズ transition、STYLY=宣言的リグ。切替方法は各 State の Inspector に表示＋ [docs/vr-mr-switching.md](docs/vr-mr-switching.md)（エンジニア向け）
 - **ルックの比較・ブレンド**（2プリセット間ブレンド / before-after スナップショット）
 - **事故チェック（検証）**: 実機で事故りやすい設定を警告
 

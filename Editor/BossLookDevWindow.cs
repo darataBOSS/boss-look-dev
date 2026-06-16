@@ -63,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.8.1 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.8.2 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -310,15 +310,6 @@ namespace Boss.LookDev.Editor
                         rig.gridSpotAngle = EditorGUILayout.Slider("Spot 角度", rig.gridSpotAngle, 1f, 179f);
                     EditorGUILayout.LabelField($"合計 {rig.gridRows * rig.gridColumns} 灯", EditorStyles.miniLabel);
                     break;
-            }
-
-            if (rig.rigType != RigType.CeilingGrid)
-            {
-                EditorGUILayout.LabelField("コースティクス (水中の光・任意)", EditorStyles.miniBoldLabel);
-                rig.causticsCookie = (Texture)EditorGUILayout.ObjectField("Cookie", rig.causticsCookie, typeof(Texture), false);
-                using (new EditorGUI.DisabledScope(rig.causticsCookie == null))
-                    rig.causticsCookieSize = EditorGUILayout.FloatField("Cookie サイズ", rig.causticsCookieSize);
-                BossHint("主ライトに cookie を割り当て（静的）。揺らぎのアニメは『強化チェックリスト』参照。");
             }
 
             using (new EditorGUILayout.HorizontalScope())
@@ -608,17 +599,11 @@ namespace Boss.LookDev.Editor
                         if (Button("リグ削除", BossLookDevPalette.Danger, 22f, 80f))
                             StateRigEmitter.DeleteRig(look);
                     }
-                    if (Button("📄 ハンドオフ手順書を生成 (日本語)", BossLookDevPalette.Auto))
-                    {
-                        var path = HandoffDocGenerator.Generate(look);
-                        var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
-                        if (asset != null) EditorGUIUtility.PingObject(asset);
-                        ShowNotification(new GUIContent("手順書を生成しました"));
-                    }
                     if (look.target == LookTarget.STYLY)
-                        EditorGUILayout.HelpBox("STYLY: 宣言的リグを生成 (BossLookDevState なし)。PlayMaker の Activate Game Object でトグル。詳細は手順書。", MessageType.Info);
+                        EditorGUILayout.HelpBox("STYLY: 宣言的リグ (BossLookDevState なし)。PlayMaker の Activate Game Object で VR_State / MR_State をトグルしてください。", MessageType.Info);
                     else
-                        EditorGUILayout.HelpBox("SelfApp: 各 State に BossLookDevState が付き、SetActive で切替＋スムーズ適用。詳細は手順書。", MessageType.Info);
+                        EditorGUILayout.HelpBox("SelfApp: 各 State に BossLookDevState が付きます。VR_State / MR_State を SetActive で切り替えるだけ（常に片方だけ有効）。各 State の Inspector に切替方法を表示します。", MessageType.Info);
+                    BossHint("エンジニア向けの説明は Git の docs/vr-mr-switching.md にあります。");
                 }
             }
         }

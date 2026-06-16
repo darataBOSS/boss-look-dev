@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.2] - 2026-06-16
+
+### Changed — UX（フィードバック反映）
+- **海専用UI（コースティクス）を通常画面から撤去**: プリセット領域の任意機能という位置づけにし、デフォルトのライト/リグ UI をクリーンに（混乱回避）。データ/適用ロジックは将来のプリセット用に温存。
+- **VR↔MR の手順書(.md)自動生成を廃止**。代わりに見れば分かる形へ:
+  - `BossLookDevState` に**カスタム Inspector** を追加し、切替方法を直接表示（`BossLookDevStateEditor`）。
+  - エンジニア向け説明を **`docs/vr-mr-switching.md`**（Git）に集約。README からリンク。
+
 ## [0.8.1] - 2026-06-16
 
 ### Fixed
