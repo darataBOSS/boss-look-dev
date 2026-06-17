@@ -63,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.9.0 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.9.1 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -197,6 +197,7 @@ namespace Boss.LookDev.Editor
                 l.environmentIntensity = EditorGUILayout.Slider("環境光強度", l.environmentIntensity, 0f, 8f);
                 l.skyboxExposure = EditorGUILayout.Slider("スカイボックス露出", l.skyboxExposure, 0f, 8f);
                 l.skyboxRotation = EditorGUILayout.Slider("スカイボックス回転", l.skyboxRotation, 0f, 360f);
+                l.skyboxHaze = EditorGUILayout.Slider("遠景の霞み (skybox→フォグ色)", l.skyboxHaze, 0f, 1f);
                 if (EditorGUI.EndChangeCheck())
                 {
                     LightingBakeOps.ApplyEnvironmentLive(look); // live preview
@@ -205,6 +206,8 @@ namespace Boss.LookDev.Editor
                 using (new EditorGUI.DisabledScope(l.hdri == null))
                     if (Button("スカイボックスを生成 / 更新", BossLookDevPalette.Generate))
                         LightingBakeOps.SetupSkybox(look);
+                if (l.skyboxHaze > 0f)
+                    BossHint("遠景の霞み: HDRI を暗く＋フォグ色に寄せて遠くを霞ませます（IBLも少し暗くなる＝深海向き）。色は『5. フォグ』の「環境から自動」でHDRIに合わせると自然。");
 
                 EditorGUILayout.Space(4);
                 EditorGUILayout.LabelField("ベイク設定", EditorStyles.boldLabel);
@@ -588,14 +591,17 @@ namespace Boss.LookDev.Editor
                 }
                 if (EditorGUI.EndChangeCheck())
                 {
-                    RenderSettings.fog = a.enabled;
-                    RenderSettings.fogMode = a.fogMode;
-                    RenderSettings.fogColor = a.fogColor;
-                    RenderSettings.fogDensity = a.fogDensity;
-                    RenderSettings.fogStartDistance = a.fogStartDistance;
-                    RenderSettings.fogEndDistance = a.fogEndDistance;
+                    AtmosphereOps.Apply(look);
+                    LightingBakeOps.ApplySkyboxHaze(look); // haze tint follows fog color
                     EditorUtility.SetDirty(look);
                 }
+                using (new EditorGUI.DisabledScope(!a.enabled))
+                    if (Button("フォグ色を環境(HDRI)から自動", BossLookDevPalette.Auto))
+                    {
+                        AtmosphereOps.AutoFogColorFromEnvironment(look);
+                        ShowNotification(new GUIContent("フォグ色をHDRIに合わせました"));
+                    }
+                BossHint("距離フォグ＝『遠くが霞む』グラデ。色をHDRIに合わせると遠景(skybox)と繋がって自然。遠景も霞ませるには『2. ライティング』の“遠景の霞み”を上げる。");
             }
         }
 

@@ -69,6 +69,8 @@ namespace Boss.LookDev
         [Range(0f, 8f)] public float environmentIntensity = 1f;
         [Range(0f, 360f)] public float skyboxRotation = 0f;
         [Range(0f, 8f)] public float skyboxExposure = 1f;
+        [Tooltip("Distance haze for the visible skybox: darkens + tints the HDRI toward the fog color so the far backdrop fades into the murk (no image editing). 0 = off.")]
+        [Range(0f, 1f)] public float skyboxHaze = 0f;
 
         [Header("Light probes")]
         public Bounds probeArea = new Bounds(Vector3.zero, new Vector3(10f, 4f, 10f));

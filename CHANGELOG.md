@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2026-06-16
+
+### Added — 遠景の霞み（HDRI使用時の距離グラデ）
+- **フォグ色を環境(HDRI)から自動取得** (`AtmosphereOps.SuggestFogColorFromEnvironment` / 「5.フォグ」に自動ボタン): 環境光プローブをサンプルし霞色をHDRIに合わせる→地形の距離フォグとHDRI遠景が色で繋がり連続グラデに。
+- **遠景の霞み (skyboxHaze)**: HDRIスカイボックスを暗く＋フォグ色にtintして遠景を霞ませる(画像加工なし)。「2.ライティング」にスライダ。深海プリセット=0.6/海中=0.4で自動設定。`LightingBakeOps.ApplySkyboxHaze`。
+- 検証: 両環境CSエラー0、haze(露出ダウン＋色tint)と環境フォグ色取得を実走確認。
+
 ## [0.9.0] - 2026-06-16
 
 ### Added — 室内/室外ゾーン対応（深海の観測ルーム向け）

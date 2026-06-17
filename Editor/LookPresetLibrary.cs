@@ -42,6 +42,7 @@ namespace Boss.LookDev.Editor
                 look.atmosphere.enabled = false;
                 look.background.enabled = false;
                 look.lighting.rig.useCaustics = false;
+                look.lighting.skyboxHaze = 0f;
             },
         };
 
@@ -61,6 +62,7 @@ namespace Boss.LookDev.Editor
                 c.bloom = true; c.bloomIntensity = 0.45f; c.vignette = true; c.vignetteIntensity = 0.45f;
                 var a = look.atmosphere;
                 a.enabled = true; a.fogMode = FogMode.ExponentialSquared; a.fogColor = new Color(0.02f, 0.10f, 0.14f); a.fogDensity = 0.10f;
+                look.lighting.skyboxHaze = 0.6f; // far backdrop fades into the murk (matches fog). HDRI 設定後「フォグ色を環境から自動」で色合わせ推奨
                 var b = look.background;
                 b.enabled = false; b.mode = BackgroundMode.Gradient; // keep user skybox; opt-in via card 3
                 b.gradientTop = new Color(0.06f, 0.22f, 0.30f); b.gradientBottom = new Color(0.005f, 0.03f, 0.06f); b.gradientExponent = 1.3f;
@@ -86,6 +88,7 @@ namespace Boss.LookDev.Editor
                 c.bloom = true; c.bloomIntensity = 0.45f; c.vignette = true; c.vignetteIntensity = 0.32f;
                 var a = look.atmosphere;
                 a.enabled = true; a.fogMode = FogMode.ExponentialSquared; a.fogColor = new Color(0.06f, 0.22f, 0.26f); a.fogDensity = 0.06f;
+                look.lighting.skyboxHaze = 0.4f; // lighter haze for clearer water
                 var b = look.background;
                 b.enabled = false; b.mode = BackgroundMode.Gradient; // keep user skybox; opt-in via card 3
                 b.gradientTop = new Color(0.12f, 0.35f, 0.42f); b.gradientBottom = new Color(0.01f, 0.06f, 0.10f); b.gradientExponent = 1.2f;
@@ -111,6 +114,7 @@ namespace Boss.LookDev.Editor
                 a.enabled = true; a.fogMode = FogMode.ExponentialSquared; a.fogColor = new Color(0.5f, 0.6f, 0.7f); a.fogDensity = 0.02f;
                 look.background.enabled = false; // keep skybox
                 look.lighting.rig.useCaustics = false;
+                look.lighting.skyboxHaze = 0f;
             },
         };
     }

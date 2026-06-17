@@ -48,6 +48,7 @@ namespace Boss.LookDev.Editor.Ops
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
             RenderSettings.ambientIntensity = lighting.environmentIntensity;
             RenderSettings.reflectionIntensity = Mathf.Clamp01(lighting.environmentIntensity);
+            ApplySkyboxHaze(look);
             DynamicGI.UpdateEnvironment();
         }
 
@@ -58,13 +59,34 @@ namespace Boss.LookDev.Editor.Ops
             if (mat.HasProperty("_Exposure")) mat.SetFloat("_Exposure", lighting.skyboxExposure);
         }
 
-        /// <summary>Live preview: drive rotation / exposure / intensity without
-        /// regenerating the material, for slider dragging (spec §4.1).</summary>
+        /// <summary>Distance haze for the visible skybox: darkens + tints the HDRI
+        /// toward the fog (haze) color so the far backdrop fades into the murk —
+        /// without editing the source image. Note: this also dims the IBL (one
+        /// skybox), which is usually desirable underwater. skyboxHaze 0 = neutral.</summary>
+        public static void ApplySkyboxHaze(LookDefinition look)
+        {
+            var mat = RenderSettings.skybox;
+            if (mat == null) return;
+            float h = Mathf.Clamp01(look.lighting.skyboxHaze);
+            if (mat.HasProperty("_Exposure"))
+                mat.SetFloat("_Exposure", look.lighting.skyboxExposure * Mathf.Lerp(1f, 0.3f, h));
+            if (mat.HasProperty("_Tint"))
+            {
+                var haze = look.atmosphere.fogColor;
+                var hazeTint = new Color(Mathf.Clamp01(haze.r) * 0.6f, Mathf.Clamp01(haze.g) * 0.6f, Mathf.Clamp01(haze.b) * 0.6f, 1f);
+                mat.SetColor("_Tint", Color.Lerp(new Color(0.5f, 0.5f, 0.5f, 1f), hazeTint, h));
+            }
+            EditorUtility.SetDirty(mat);
+        }
+
+        /// <summary>Live preview: drive rotation / exposure / intensity (and haze)
+        /// without regenerating the material, for slider dragging (spec §4.1).</summary>
         public static void ApplyEnvironmentLive(LookDefinition look)
         {
             var mat = RenderSettings.skybox;
             if (mat == null) return;
             ApplySkyboxParams(mat, look.lighting);
+            ApplySkyboxHaze(look);
             RenderSettings.ambientIntensity = look.lighting.environmentIntensity;
             RenderSettings.reflectionIntensity = Mathf.Clamp01(look.lighting.environmentIntensity);
             EditorUtility.SetDirty(mat);
