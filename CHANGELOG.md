@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.3] - 2026-06-17
+
+### Removed — コースティクスをツールから撤去
+- 水中表現（コースティクス等）はプロジェクト側のシェーダ/VFXで設定する方針に統一。ツールはライティング/ベイク/カラー/フォグ/背景/State の土台に専念。
+- データ: `LightRigConfig` から `useCaustics` / `causticsCookie` / `causticsCookieSize` を削除。
+- ロジック: `LightRigAuthoring` の cookie 割り当て処理（`ApplyCausticsCookie` と呼び出し）を削除。
+- プリセット: 各プリセットの caustics 設定行を削除（深海/海中など）。
+- UI: 「2.ライティング」リグのコースティクス トグル欄を削除。
+- ドキュメント: 強化チェックリストのコースティクス項目を「プロジェクト側で用意」する手順として記載（cookie＋UVスクロール or 専用シェーダ）。
+- 検証: 両環境（URP / Built-in）CSエラー0、全 LookDev DLL 再ビルド確認。
+
 ## [0.9.2] - 2026-06-16
 
 ### Changed — 背景・環境光カードの分かりやすさ改善

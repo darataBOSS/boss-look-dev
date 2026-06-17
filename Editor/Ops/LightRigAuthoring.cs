@@ -96,19 +96,6 @@ namespace Boss.LookDev.Editor.Ops
 
             ConfigureFocus(back, rig, subjectPos, AngleOffset(180f, 45f, radius),
                 rig.keyIntensity * 0.6f, rig.backKelvin, LightShadows.None);
-
-            ApplyCausticsCookie(key, rig);
-        }
-
-        /// <summary>Assigns the caustics cookie to a rig light (static). Animating
-        /// the scroll is a project-side shader/script task (see the enhancement
-        /// checklist). Passing a null cookie clears it.</summary>
-        private static void ApplyCausticsCookie(Light light, LightRigConfig rig)
-        {
-            if (light == null) return;
-            light.cookie = rig.useCaustics ? rig.causticsCookie : null;
-            if (light.type == LightType.Directional && rig.useCaustics && rig.causticsCookie != null)
-                light.cookieSize = Mathf.Max(0.01f, rig.causticsCookieSize);
         }
 
         private static Vector3 AngleOffset(float yawDeg, float pitchDeg, float radius)
@@ -164,7 +151,6 @@ namespace Boss.LookDev.Editor.Ops
             sun.useColorTemperature = true;
             sun.colorTemperature = rig.sunKelvin;
             sun.color = Color.white;
-            ApplyCausticsCookie(sun, rig);
 
             var existingFill = root.transform.Find($"{root.name} - Sky Fill");
             if (rig.skyFill)

@@ -24,7 +24,6 @@ namespace Boss.LookDev.Editor.Ops
 
         private static string Build(LookDefinition look)
         {
-            bool hasCaustics = look.lighting.rig.causticsCookie != null;
             var sb = new StringBuilder();
 
             sb.AppendLine($"# {look.lookName} — ルック強化チェックリスト");
@@ -45,10 +44,7 @@ namespace Boss.LookDev.Editor.Ops
             sb.AppendLine("## プロジェクト側で用意するとより良くなるもの");
             sb.AppendLine();
             sb.AppendLine("### 1. コースティクス（水中の光の揺らぎ）★最重要・コスパ最強");
-            if (hasCaustics)
-                sb.AppendLine("- cookie は **割り当て済み**（リグの主ライト）。あとは **UV スクロールでアニメ**させる（シェーダ or 小スクリプトで cookie/サンプルをスクロール）。");
-            else
-                sb.AppendLine("- caustics のループテクスチャを用意し、リグの主ライトに cookie として割り当て（ツールの「コースティクス」スロット）。さらに UV スクロールでアニメ。");
+            sb.AppendLine("- caustics のループテクスチャを用意し、**ライトの cookie に割り当て＋UV をスクロール**（シェーダ or 小スクリプト）。または専用シェーダで床・オブジェクトに投影。");
             sb.AppendLine("- 床・オブジェクトに揺らぐ光網が出る。モバイルでも軽い。**入れると一気に水中になる**。");
             sb.AppendLine();
             sb.AppendLine("### 2. ゴッドレイ / 光芒");

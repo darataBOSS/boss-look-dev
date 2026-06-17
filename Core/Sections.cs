@@ -42,11 +42,6 @@ namespace Boss.LookDev
         public float gridKelvin = 4500f;
         [Range(1f, 179f)] public float gridSpotAngle = 100f;
 
-        [Header("Caustics (underwater, optional): assigns a cookie to the rig's main light")]
-        [Tooltip("Optional underwater caustics. Ocean presets turn this on. The tool statically assigns the cookie; animating the scroll is a project-side shader/script task (see the enhancement checklist).")]
-        public bool useCaustics = false;
-        public Texture causticsCookie;
-        public float causticsCookieSize = 30f;
     }
 
     /// <summary>Foundation layer (spec §3.1, §4.0): full bake + HDRI/IBL + probes
