@@ -63,7 +63,7 @@ namespace Boss.LookDev.Editor
         private void DrawHeader()
         {
             EditorGUILayout.LabelField("BOSS Look Dev", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("v0.9.1 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("v0.9.2 — lighting-first / AR・VR・MR / Built-in・URP", EditorStyles.miniLabel);
 
             EditorGUI.BeginChangeCheck();
             look = (LookDefinition)EditorGUILayout.ObjectField("Look", look, typeof(LookDefinition), false);
@@ -428,7 +428,9 @@ namespace Boss.LookDev.Editor
                 EditorGUILayout.Space(2);
 
                 EditorGUI.BeginChangeCheck();
-                bg.enabled = EditorGUILayout.Toggle("ツールで背景・環境光を管理", bg.enabled);
+                bg.enabled = EditorGUILayout.Toggle("背景・環境光をツールで上書きする（OFF＝今のまま）", bg.enabled);
+                if (!bg.enabled)
+                    BossHint("OFF：ツールは背景・環境光に触りません（今のスカイボックス／環境光のまま）。深海の縦グラデ背景・単色・AR透過・色付き環境光にしたい時だけ ON にしてください。");
                 using (new EditorGUI.DisabledScope(!bg.enabled))
                 {
                     EditorGUILayout.LabelField("背景 (カメラ)", EditorStyles.miniBoldLabel);
@@ -436,7 +438,7 @@ namespace Boss.LookDev.Editor
                     switch (bg.mode)
                     {
                         case BackgroundMode.Skybox:
-                            BossHint("HDRI / CG スカイボックスを表示（VR）。");
+                            BossHint("HDRI / CG スカイボックスを表示（VR）。※下の単色／グラデの色はこのモードでは無効です。");
                             break;
                         case BackgroundMode.SolidColor:
                             bg.solidColor = EditorGUILayout.ColorField(new GUIContent("単色 (α=0 で透過 / AR)"), bg.solidColor, true, true, false);
@@ -451,6 +453,9 @@ namespace Boss.LookDev.Editor
                     bg.ambientMode = (LookAmbientMode)EditorGUILayout.EnumPopup("環境光モード", bg.ambientMode);
                     switch (bg.ambientMode)
                     {
+                        case LookAmbientMode.Skybox:
+                            BossHint("スカイボックス(HDRI)から環境光。※下の環境色はこのモードでは無効です。");
+                            break;
                         case LookAmbientMode.Flat:
                             bg.ambientFlat = EditorGUILayout.ColorField("環境色", bg.ambientFlat);
                             break;
@@ -467,8 +472,9 @@ namespace Boss.LookDev.Editor
                     EditorUtility.SetDirty(look);
                     if (bg.enabled) BackgroundOps.Apply(look); // live
                 }
-                if (Button("背景・環境光を適用", BossLookDevPalette.Generate))
-                    BackgroundOps.Apply(look);
+                using (new EditorGUI.DisabledScope(!bg.enabled))
+                    if (Button("背景・環境光を適用", BossLookDevPalette.Generate))
+                        BackgroundOps.Apply(look);
                 BossHint("深海VR例: 背景=グラデ(上=明るい青/下=濃紺)・環境光=グラデ・フォグ濃いめ＋寒色グレード。MR は State 切替で自動。");
             }
         }
